@@ -5,6 +5,7 @@ const publicRoot = new URL("../public/", import.meta.url);
 const historicalRoot = new URL("historical/", publicRoot);
 const sceneRoot = new URL("historical-scenes/", publicRoot);
 const plotBase = `${apiOrigin}/api/v1/plots/DEMO-PLOT-001`;
+const refreshPreviews = process.env.RICE_TWIN_REFRESH_PREVIEWS === "1";
 
 async function getJson(url) {
   const response = await fetch(url);
@@ -81,7 +82,7 @@ async function worker() {
     const directory = new URL(`${job.scene.image_id}/`, sceneRoot);
     const destination = new URL(`${job.mode}.png`, directory);
     await mkdir(directory, { recursive: true });
-    if (!(await exists(destination))) {
+    if (refreshPreviews || !(await exists(destination))) {
       const response = await fetch(
         `${apiOrigin}/api/v1/imagery/${job.scene.image_id}/preview.png?mode=${job.mode}`,
       );

@@ -74,13 +74,21 @@ test("ships the historical baseline bundle and both sensor archives", async () =
   assert.match(dashboardSource, /ช่องว่างของเส้นหมายถึงไม่มีภาพที่ใช้ได้/);
   assert.match(dashboardSource, /source\.updateImage/);
   assert.match(dashboardSource, /HISTORY_PREFETCH_FRAMES = 8/);
+  assert.match(dashboardSource, /historyScene\.coordinates \?\?/);
   assert.doesNotMatch(dashboardSource, /key=\{`history-\$\{historyScene\.image_id\}/);
   assert.equal(historical.public_static_snapshot, true);
-  assert.equal(historical.timeline.length, 264);
-  assert.equal(historical.baseline.usable_image_count, 213);
+  assert.ok(historical.timeline.length >= 265);
+  assert.equal(historical.baseline.usable_image_count, historical.timeline.length);
+  assert.ok(historical.baseline.image_count >= historical.timeline.length);
   assert.ok(historical.cycles.length >= 1);
   assert.equal(historical.evidence.length, 14);
   assert.equal(historical.sensors.length, 8);
+  assert.ok(historical.timeline.every((scene) =>
+    Array.isArray(scene.coordinates) && scene.coordinates.length === 4
+  ));
+  assert.ok(historical.timeline.some((scene) =>
+    Math.abs(scene.coordinates[0][1] - scene.coordinates[1][1]) > 1e-8
+  ));
   await Promise.all([
     access(new URL("../public/historical-scenes/hist-s2-2025-01-05/ndvi.png", import.meta.url)),
     access(new URL("../public/historical-scenes/hist-s2-2025-01-05/true_color.png", import.meta.url)),

@@ -61,6 +61,7 @@ type HistoricalScene = {
   date: string;
   sensor: SentinelSensor;
   bounds: [number, number, number, number];
+  coordinates?: ImageryCoordinates;
   status: string;
   quality: number;
   plot_coverage_percent: number;
@@ -232,17 +233,17 @@ function imageryAssetUrl(assetRoot: string, sceneId: string, band: string) {
 }
 
 const sentinel2Coordinates: ImageryCoordinates = [
-  [100.26460859984597, 14.4799171060011],
-  [100.28485500871204, 14.4799171060011],
-  [100.28485500871204, 14.459559806312308],
-  [100.26460859984597, 14.459559806312308],
+  [100.264723227902, 14.479917106001],
+  [100.284855008712, 14.479807962921],
+  [100.284738557228, 14.459559806312],
+  [100.264608599846, 14.459668790336],
 ];
 
 const sentinel1Coordinates: ImageryCoordinates = [
-  [100.26462000860424, 14.479836420011923],
-  [100.2848653877068, 14.479836420011923],
-  [100.2848653877068, 14.459659907243962],
-  [100.26462000860424, 14.459659907243962],
+  [100.264733614254, 14.479836420012],
+  [100.284865387707, 14.479727276637],
+  [100.284749974909, 14.459659907244],
+  [100.264620008604, 14.459768892981],
 ];
 
 const sentinelScenes: {
@@ -496,7 +497,7 @@ export default function RiceTwinDashboard() {
   const historyScene = historyScenes[Math.min(historyIndex, Math.max(0, historyScenes.length - 1))];
   const historyCoordinates = useMemo<ImageryCoordinates | null>(
     () => historyScene
-      ? [
+      ? historyScene.coordinates ?? [
           [historyScene.bounds[0], historyScene.bounds[3]],
           [historyScene.bounds[2], historyScene.bounds[3]],
           [historyScene.bounds[2], historyScene.bounds[1]],
