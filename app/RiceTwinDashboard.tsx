@@ -116,6 +116,121 @@ const historicalModes = {
   ],
 };
 
+const HISTORY_FRAME_MS = 900;
+const HISTORY_PREFETCH_FRAMES = 8;
+const DAY_MS = 86_400_000;
+
+const sourceThai: Record<string, string> = {
+  REFERENCE: "อ้างอิง",
+  SIMULATED: "จำลอง",
+  PUBLIC: "ข้อมูลสาธารณะ",
+  MANUAL: "บันทึกโดยคน",
+  DERIVED: "คำนวณจากข้อมูล",
+  OBSERVED: "ข้อมูลที่สังเกตได้",
+  ESTIMATED: "ค่าประมาณ",
+  UNKNOWN: "ไม่ทราบ",
+  HIGH: "สูง",
+  MODERATE: "ปานกลาง",
+  LOW: "ต่ำ",
+  PROPOSED: "ข้อเสนอ",
+  NOT_FIELD_VERIFIED: "ยังไม่ตรวจภาคสนาม",
+};
+
+const supportThai: Record<string, string> = {
+  STRONG: "รองรับชัดเจน",
+  MODERATE: "รองรับปานกลาง",
+  WEAK: "รองรับเล็กน้อย",
+  NOT_SUPPORTED: "ภาพไม่รองรับข้อสรุปนี้",
+};
+
+const qualityThai: Record<string, string> = {
+  image_quality_score: "คุณภาพภาพ",
+  crop_cycle_confidence: "ความมั่นใจของรอบปลูก",
+  spatial_coverage_score: "การครอบคลุมพื้นที่",
+  temporal_coverage_score: "ความต่อเนื่องตามเวลา",
+  classification_confidence: "ความมั่นใจของการจำแนก",
+  cultivated_area_confidence: "ความมั่นใจของพื้นที่เพาะปลูก",
+  imagery_availability_score: "ความพร้อมของภาพ",
+  historical_baseline_completeness: "ความครบถ้วนของข้อมูลย้อนหลัง",
+};
+
+const fieldStateThai: Record<string, string> = {
+  EARLY_GROWTH: "ระยะเริ่มเจริญเติบโต",
+  FLOODED_OR_WET_PREPARATION: "เตรียมแปลงแบบน้ำขังหรือเปียก",
+  HARVEST_WINDOW: "ช่วงที่อาจเก็บเกี่ยว",
+  LAND_PREPARATION: "ช่วงเตรียมดิน",
+  MATURITY_OR_DRYING: "ระยะสุกแก่หรือเริ่มแห้ง",
+  PEAK_VEGETATION: "ช่วงพืชพรรณหนาแน่นสูงสุด",
+  VEGETATIVE_GROWTH: "ระยะเจริญเติบโตทางลำต้นและใบ",
+};
+
+const explanationThai: Record<string, string> = {
+  "Bare/prepared-soil candidate dominates the plot.": "พื้นที่ส่วนใหญ่มีสัญญาณคล้ายดินเปล่าหรือแปลงที่กำลังเตรียม",
+  "Vegetation score dropped by at least 0.18 from the previous usable image.": "ค่าพืชพรรณลดลงอย่างน้อย 0.18 จากภาพที่ใช้งานได้ก่อนหน้า จึงเป็น candidate ของช่วงเก็บเกี่ยวหรือแห้งลง",
+  "Vegetation score is in the early-growth candidate range.": "ค่าพืชพรรณอยู่ในช่วง candidate ของการเจริญเติบโตระยะแรก",
+  "Vegetation score is in the peak candidate range.": "ค่าพืชพรรณอยู่ในช่วง candidate ของความเขียวสูงสุด",
+  "Vegetation score is in the vegetative-growth candidate range.": "ค่าพืชพรรณอยู่ในช่วง candidate ของการเจริญเติบโตทางลำต้นและใบ",
+  "Vegetation score is moderate without a sharp harvest transition.": "ค่าพืชพรรณอยู่ระดับปานกลางและยังไม่เห็นการลดลงฉับพลันแบบช่วงเก็บเกี่ยว",
+  "Wetness candidate is high while vegetation is limited.": "พบ candidate ความเปียกสูงในขณะที่สัญญาณพืชพรรณยังต่ำ",
+};
+
+const limitationThai: Record<string, string> = {
+  "Historical imagery analysis is an analytical demonstration. It does not independently verify AWD compliance.": "การวิเคราะห์ภาพย้อนหลังนี้เป็นการสาธิตเชิงวิเคราะห์ ไม่สามารถยืนยันการปฏิบัติตาม AWD ได้ด้วยตัวเอง",
+  "Overhead imagery cannot directly measure water depth below the soil surface.": "ภาพจากด้านบนไม่สามารถวัดระดับความลึกของน้ำใต้ผิวดินได้โดยตรง",
+  "Crop-stage, planting-window, and harvest-window results are estimates unless confirmed by field records.": "ระยะข้าว ช่วงปลูก และช่วงเก็บเกี่ยวเป็นค่าประมาณ จนกว่าจะมีบันทึกภาคสนามยืนยัน",
+  "Fertilizer application, straw management, yield, and greenhouse-gas emissions cannot be determined reliably from imagery alone.": "ไม่สามารถสรุปการใส่ปุ๋ย การจัดการฟาง ผลผลิต หรือการปล่อยก๊าซเรือนกระจกอย่างน่าเชื่อถือจากภาพเพียงอย่างเดียว",
+  "Carbon results shown in the demonstration are not verified carbon credits.": "ผลด้านคาร์บอนในระบบสาธิตไม่ใช่คาร์บอนเครดิตที่ผ่านการรับรอง",
+  "No actual cultivation or field IoT installation has been completed for the demonstration plot.": "แปลงสาธิตนี้ยังไม่มีการเพาะปลูกจริงหรือการติดตั้ง IoT ภาคสนามจริง",
+};
+
+const zoneThai: Record<string, string> = {
+  RECURRING_WETNESS_CANDIDATE: "พื้นที่ที่พบ candidate ความเปียกซ้ำ",
+  RECURRING_LOW_GROWTH_CANDIDATE: "พื้นที่ที่พบ candidate การเจริญเติบโตต่ำซ้ำ",
+};
+
+const sensorTypeThai: Record<string, string> = {
+  PRIMARY_WATER_LEVEL_SENSOR: "เซนเซอร์ระดับน้ำหลัก",
+  SECONDARY_WATER_LEVEL_SENSOR: "เซนเซอร์ระดับน้ำสำรอง",
+  RAINFALL_GAUGE: "เครื่องวัดปริมาณฝน",
+  SOIL_MOISTURE_SENSOR: "เซนเซอร์ความชื้นดิน",
+  INLET_FLOW_METER: "มาตรวัดการไหลทางน้ำเข้า",
+  DRAINAGE_OBSERVATION_POINT: "จุดสังเกตการระบายน้ำ",
+  PUMP_ENERGY_METER: "มาตรวัดพลังงานเครื่องสูบน้ำ",
+  FIELD_PHOTO_POINT: "จุดถ่ายภาพภาคสนาม",
+};
+
+const evidenceThai: Record<string, [string, string]> = {
+  "AWD cycles": ["รอบการจัดการน้ำแบบ AWD", "ภาพรายสัปดาห์จากด้านบนไม่สามารถยืนยันการปฏิบัติตาม AWD ได้โดยลำพัง"],
+  "Probable crop-cycle count": ["จำนวนรอบปลูกที่เป็นไปได้", "ตรวจพบรอบ candidate 4 รอบจากการเปลี่ยนผ่านของแนวโน้มที่ปรับให้เรียบ"],
+  "Cultivated area": ["พื้นที่เพาะปลูก", "สัดส่วนการปกคลุมจากภาพหลายช่วงคลื่นที่ตัดตามแปลงรองรับการรายงานเป็นช่วงพื้นที่"],
+  "Fertilizer use": ["การใช้ปุ๋ย", "ต้องใช้บันทึกภาคสนามหรือหลักฐานจากเซนเซอร์"],
+  "Flood anomaly": ["ความผิดปกติจากน้ำท่วม", "ภาพรายสัปดาห์อาจชี้ความเปียกผิดปกติ แต่ไม่ยืนยันสาเหตุหรือระดับน้ำ"],
+  "GHG emissions": ["การปล่อยก๊าซเรือนกระจก", "ภาพชุดนี้ไม่ได้สังเกตการปล่อยก๊าซเรือนกระจกโดยตรง"],
+  "Harvested area": ["พื้นที่เก็บเกี่ยว", "การลดลงของพืชพรรณหลังจุดสูงสุดและ candidate ผิวดินโล่งรองรับค่าประมาณแบบช่วง"],
+  "Probable harvest window": ["ช่วงเก็บเกี่ยวที่เป็นไปได้", "แสดงเป็นช่วงวันที่หลังสัญญาณพืชพรรณลดลง"],
+  "Probable planting window": ["ช่วงปลูกที่เป็นไปได้", "แสดงเป็นช่วงวันที่ระหว่างภาพที่มีอยู่"],
+  "Pre-season wetness": ["ความเปียกก่อนฤดูปลูก", "Candidate ความเปียกจากภาพ optical และ radar ใช้เป็นข้อมูลบริบท"],
+  "Rice cultivation continuity": ["ความต่อเนื่องของการปลูกข้าว", "การเปลี่ยนผ่านของพืชพรรณที่เกิดซ้ำสอดคล้องกับการเพาะปลูกซ้ำ แต่ต้องยืนยันภาคสนาม"],
+  "Straw management": ["การจัดการฟาง", "ไม่สามารถระบุการจัดการฟางอย่างน่าเชื่อถือจากภาพที่ให้มา"],
+  "Water depth": ["ระดับความลึกของน้ำ", "ภาพจากด้านบนไม่สามารถวัดระดับน้ำใต้ผิวดินได้"],
+  "Yield": ["ผลผลิต", "ไม่มีข้อมูลชั่งน้ำหนักผลผลิตหรือบันทึกการผลิต"],
+};
+
+const sensorRationaleThai: Record<string, string> = {
+  PRIMARY_WATER_LEVEL_SENSOR: "ตำแหน่งกลางแปลงที่เป็นตัวแทนสำหรับบันทึกระดับน้ำ AWD หลัก",
+  SECONDARY_WATER_LEVEL_SENSOR: "เสนอใกล้พื้นที่ที่พบ candidate ความเปียกซ้ำ เพื่อใช้เทียบกับตัวหลัก",
+  RAINFALL_GAUGE: "เสนอใกล้ขอบแปลงเพื่อลดการบดบังจากทรงพุ่มข้าว",
+  SOIL_MOISTURE_SENSOR: "เสนอเพื่อตรวจภาคสนามในพื้นที่ที่พบ candidate การเจริญเติบโตต่ำซ้ำ",
+  INLET_FLOW_METER: "สมมติให้อยู่ด้านทางน้ำเข้า ต้องตรวจผังชลศาสตร์จริงภาคสนาม",
+  DRAINAGE_OBSERVATION_POINT: "สมมติให้อยู่ด้านทางน้ำออกสำหรับสังเกตการระบาย ยังไม่ได้สำรวจจริง",
+  PUMP_ENERGY_METER: "เสนอใกล้จุดต่อเครื่องสูบน้ำที่สมมติไว้ เพราะยังไม่ทราบตำแหน่งเครื่องสูบจริง",
+  FIELD_PHOTO_POINT: "เสนอเป็นจุดถ่ายภาพซ้ำที่มองเห็นแนวยาวของแปลงได้เป็นตัวแทน",
+};
+
+function imageryAssetUrl(assetRoot: string, sceneId: string, band: string) {
+  return new URL(`${assetRoot}/${sceneId}/${band}.png`, window.location.href).href;
+}
+
 const sentinel2Coordinates: ImageryCoordinates = [
   [100.26460859984597, 14.4799171060011],
   [100.28485500871204, 14.4799171060011],
@@ -199,7 +314,7 @@ function InteractiveMap({
     import("maplibre-gl").then((maplibreModule) => {
       if (cancelled || !containerRef.current) return;
       const maplibregl: any = maplibreModule.default ?? maplibreModule;
-      const imageUrl = new URL(`${assetRoot}/${sceneId}/${band}.png`, window.location.href).href;
+      const imageUrl = imageryAssetUrl(assetRoot, sceneId, band);
       const map = new maplibregl.Map({
         container: containerRef.current,
         center: [100.274733, 14.469728],
@@ -240,7 +355,11 @@ function InteractiveMap({
           type: "raster",
           source: "sentinel-overlay",
           layout: { visibility: overlayVisible ? "visible" : "none" },
-          paint: { "raster-opacity": opacity },
+          paint: {
+            "raster-opacity": opacity,
+            "raster-fade-duration": 240,
+            "raster-resampling": "linear",
+          },
         });
         map.addSource("demo-plot", {
           type: "geojson",
@@ -283,21 +402,15 @@ function InteractiveMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.isStyleLoaded()) return;
-    if (map.getLayer("sentinel-overlay")) map.removeLayer("sentinel-overlay");
-    if (map.getSource("sentinel-overlay")) map.removeSource("sentinel-overlay");
-    map.addSource("sentinel-overlay", {
-      type: "image",
-      url: `${new URL(`${assetRoot}/${sceneId}/${band}.png`, window.location.href).href}?layer=${encodeURIComponent(`${sceneId}-${band}`)}`,
-      coordinates,
-    });
-    map.addLayer({
-      id: "sentinel-overlay",
-      type: "raster",
-      source: "sentinel-overlay",
-      layout: { visibility: overlayVisible ? "visible" : "none" },
-      paint: { "raster-opacity": opacity },
-    }, map.getLayer("demo-plot-fill") ? "demo-plot-fill" : undefined);
+    if (!map) return;
+    const updateOverlay = () => {
+      const source = map.getSource("sentinel-overlay") as any;
+      if (!source?.updateImage) return;
+      source.updateImage({ url: imageryAssetUrl(assetRoot, sceneId, band), coordinates });
+    };
+    if (map.getSource("sentinel-overlay")) updateOverlay();
+    else map.once("load", updateOverlay);
+    return () => map.off("load", updateOverlay);
   }, [sceneId, band, coordinates, assetRoot]);
 
   useEffect(() => {
@@ -329,7 +442,11 @@ function InteractiveMap({
 }
 
 function Source({ children }: { children: string }) {
-  return <span className={`source source-${children.toLowerCase()}`}>{children}</span>;
+  return (
+    <span className={`source source-${children.toLowerCase()}`}>
+      {children}{sourceThai[children] ? ` · ${sourceThai[children]}` : ""}
+    </span>
+  );
 }
 
 function StateRow({ label, value, source }: { label: string; value: string; source?: string }) {
@@ -377,32 +494,104 @@ export default function RiceTwinDashboard() {
     [historical, historySensor, historyYear],
   );
   const historyScene = historyScenes[Math.min(historyIndex, Math.max(0, historyScenes.length - 1))];
-  const historyCoordinates: ImageryCoordinates | null = historyScene
-    ? [
-        [historyScene.bounds[0], historyScene.bounds[3]],
-        [historyScene.bounds[2], historyScene.bounds[3]],
-        [historyScene.bounds[2], historyScene.bounds[1]],
-        [historyScene.bounds[0], historyScene.bounds[1]],
-      ]
-    : null;
+  const historyCoordinates = useMemo<ImageryCoordinates | null>(
+    () => historyScene
+      ? [
+          [historyScene.bounds[0], historyScene.bounds[3]],
+          [historyScene.bounds[2], historyScene.bounds[3]],
+          [historyScene.bounds[2], historyScene.bounds[1]],
+          [historyScene.bounds[0], historyScene.bounds[1]],
+        ]
+      : null,
+    [historyScene],
+  );
   const opticalHistory = useMemo(
     () => (historical?.timeline ?? []).filter((item) => item.sensor === "Sentinel-2" && item.vegetation_score != null),
     [historical],
   );
+  const activeOpticalIndex = useMemo(() => {
+    if (!historyScene || opticalHistory.length === 0) return -1;
+    const exact = opticalHistory.findIndex((item) => item.image_id === historyScene.image_id);
+    if (exact >= 0) return exact;
+    const target = Date.parse(historyScene.date);
+    return opticalHistory.reduce(
+      (best, item, index) => (
+        Math.abs(Date.parse(item.date) - target) < Math.abs(Date.parse(opticalHistory[best].date) - target)
+          ? index
+          : best
+      ),
+      0,
+    );
+  }, [historyScene, opticalHistory]);
   const historyChart = useMemo(() => {
-    const width = 1000, height = 230, padding = 30;
-    const point = (item: HistoricalScene, index: number, key: "vegetation_score" | "smoothed_vegetation_score" | "water_candidate_fraction") => {
-      const value = Math.max(0, Math.min(1, Number(item[key] ?? 0)));
-      const x = padding + index * (width - padding * 2) / Math.max(1, opticalHistory.length - 1);
-      const y = height - padding - value * (height - padding * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    const width = 1000, height = 280, left = 64, right = 24, top = 24, bottom = 42;
+    const minValue = -0.25, maxValue = 1;
+    const start = Date.parse(opticalHistory[0]?.date ?? "2023-01-01");
+    const end = Date.parse(opticalHistory.at(-1)?.date ?? "2026-12-31");
+    const xFor = (item: HistoricalScene) => left + (
+      (Date.parse(item.date) - start) / Math.max(DAY_MS, end - start)
+    ) * (width - left - right);
+    const yFor = (value: number | null) => {
+      const normalized = Math.max(minValue, Math.min(maxValue, Number(value ?? 0)));
+      return top + ((maxValue - normalized) / (maxValue - minValue)) * (height - top - bottom);
     };
+    const segmentsFor = (key: "vegetation_score" | "smoothed_vegetation_score" | "water_candidate_fraction") => {
+      const segments: string[] = [];
+      let current: string[] = [];
+      opticalHistory.forEach((item, index) => {
+        const previous = opticalHistory[index - 1];
+        if (previous && Date.parse(item.date) - Date.parse(previous.date) > 18 * DAY_MS) {
+          if (current.length > 1) segments.push(current.join(" "));
+          current = [];
+        }
+        current.push(`${xFor(item).toFixed(1)},${yFor(item[key]).toFixed(1)}`);
+      });
+      if (current.length > 1) segments.push(current.join(" "));
+      return segments;
+    };
+    const active = activeOpticalIndex >= 0 ? opticalHistory[activeOpticalIndex] : null;
+    const startYear = new Date(start).getUTCFullYear();
+    const endYear = new Date(end).getUTCFullYear();
     return {
-      raw: opticalHistory.map((item, index) => point(item, index, "vegetation_score")).join(" "),
-      smooth: opticalHistory.map((item, index) => point(item, index, "smoothed_vegetation_score")).join(" "),
-      wet: opticalHistory.map((item, index) => point(item, index, "water_candidate_fraction")).join(" "),
+      raw: segmentsFor("vegetation_score"),
+      smooth: segmentsFor("smoothed_vegetation_score"),
+      wet: segmentsFor("water_candidate_fraction"),
+      active: active ? {
+        item: active,
+        x: xFor(active),
+        rawY: yFor(active.vegetation_score),
+        smoothY: yFor(active.smoothed_vegetation_score),
+        wetY: yFor(active.water_candidate_fraction),
+        nearest: active.image_id !== historyScene?.image_id,
+      } : null,
+      years: Array.from({ length: endYear - startYear + 1 }, (_, index) => {
+        const year = startYear + index;
+        const timestamp = Math.max(start, Date.UTC(year, 0, 1));
+        return {
+          year,
+          x: left + ((timestamp - start) / Math.max(DAY_MS, end - start)) * (width - left - right),
+        };
+      }),
+      plot: { width, height, left, right, top, bottom, minValue, maxValue },
     };
-  }, [opticalHistory]);
+  }, [activeOpticalIndex, historyScene?.image_id, opticalHistory]);
+  const historyReading = useMemo(() => {
+    const item = historyChart.active?.item;
+    if (!item) return null;
+    const vegetation = Number(item.smoothed_vegetation_score ?? item.vegetation_score ?? 0);
+    const wetness = Number(item.water_candidate_fraction ?? 0);
+    const vegetationText = vegetation >= 0.65
+      ? "สัญญาณพืชพรรณเขียวค่อนข้างสูง"
+      : vegetation >= 0.4
+        ? "สัญญาณพืชพรรณอยู่ระดับปานกลาง"
+        : "สัญญาณพืชพรรณค่อนข้างต่ำ";
+    const wetnessText = wetness >= 0.5
+      ? "พบ candidate พื้นผิวเปียกในสัดส่วนสูง"
+      : wetness >= 0.15
+        ? "พบ candidate พื้นผิวเปียกบางส่วน"
+        : "ยังไม่เห็น candidate พื้นผิวเปียกเด่นชัด";
+    return { item, vegetationText, wetnessText };
+  }, [historyChart.active]);
 
   useEffect(() => {
     let cancelled = false;
@@ -426,12 +615,37 @@ export default function RiceTwinDashboard() {
   }, [historySensor, historyYear]);
 
   useEffect(() => {
+    if (historyScenes.length === 0) return;
+    const count = historyPlaying ? HISTORY_PREFETCH_FRAMES : 3;
+    for (let offset = 0; offset < Math.min(count, historyScenes.length); offset += 1) {
+      const scene = historyScenes[(historyIndex + offset) % historyScenes.length];
+      const image = new Image();
+      image.decoding = "async";
+      image.src = imageryAssetUrl("historical-scenes", scene.image_id, historyMode);
+      image.decode?.().catch(() => undefined);
+    }
+  }, [historyIndex, historyMode, historyPlaying, historyScenes]);
+
+  useEffect(() => {
     if (!historyPlaying || historyScenes.length < 2) return;
-    const timer = setInterval(
-      () => setHistoryIndex((value) => (value + 1) % historyScenes.length),
-      1000,
-    );
-    return () => clearInterval(timer);
+    let cancelled = false;
+    let frame = 0;
+    let timer = 0;
+    const schedule = () => {
+      timer = window.setTimeout(() => {
+        frame = window.requestAnimationFrame(() => {
+          if (cancelled) return;
+          setHistoryIndex((value) => (value + 1) % historyScenes.length);
+          schedule();
+        });
+      }, HISTORY_FRAME_MS);
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      window.cancelAnimationFrame(frame);
+    };
   }, [historyPlaying, historyScenes.length]);
 
   useEffect(() => {
@@ -627,8 +841,8 @@ export default function RiceTwinDashboard() {
         {view === "historical" && (
           <div className="content historical-content">
             <section className="section-title">
-              <div><p className="kicker">ACTUAL ARCHIVE ANALYSIS · STATIC PUBLIC SNAPSHOT</p><h2>Historical Baseline Explorer</h2><p>Sentinel‑2 และ Sentinel‑1 ย้อนหลังประมาณรายสัปดาห์ พร้อม raw metrics, crop-cycle windows, recurring zones และข้อจำกัดที่ตรวจสอบได้</p></div>
-              <span className="status-pill">{historical?.baseline?.algorithm?.version ?? "LOADING"}</span>
+              <div><p className="kicker">คลังภาพจริง · ชุดข้อมูลสาธารณะคงที่</p><h2>Historical Baseline Explorer · สำรวจข้อมูลย้อนหลัง</h2><p>Sentinel‑2 และ Sentinel‑1 ย้อนหลังประมาณรายสัปดาห์ พร้อมค่าดิบ ช่วงเวลารอบปลูก พื้นที่ที่พบซ้ำ และข้อจำกัดที่ตรวจสอบได้</p></div>
+              <span className="status-pill">{historical?.baseline?.algorithm?.version ?? "กำลังโหลด"}</span>
             </section>
             {historyError && <div className="method-note"><b>โหลดข้อมูลไม่สำเร็จ</b><span>{historyError}</span></div>}
             {!historical && !historyError && <article className="panel empty">กำลังโหลด static historical bundle…</article>}
@@ -642,11 +856,11 @@ export default function RiceTwinDashboard() {
                     ["เฉลี่ยต่อเดือน", historical.baseline.average_images_per_month, "DERIVED"],
                     ["รอบปลูกที่เป็นไปได้", historical.baseline.probable_crop_cycles, "ESTIMATED"],
                     ["Baseline completeness", `${historical.baseline.quality_scores.historical_baseline_completeness}%`, "DERIVED"],
-                  ].map((item) => <article className="kpi-card" key={String(item[0])}><div><span>{item[0]}</span><Source>{String(item[2])}</Source></div><strong>{item[1]}</strong><p>HIST-RICE-1.0.0 · public static snapshot</p></article>)}
+                  ].map((item) => <article className="kpi-card" key={String(item[0])}><div><span>{item[0]}</span><Source>{String(item[2])}</Source></div><strong>{item[1]}</strong><p>HIST-RICE-1.0.0 · ชุดข้อมูลสาธารณะคงที่</p></article>)}
                 </section>
 
                 <section className="panel history-replay">
-                  <div className="panel-head"><div><p className="kicker">HISTORICAL REPLAY</p><h3>{historyScene ? `${historyScene.date} · ${historyScene.sensor}` : "ไม่มี scene ในตัวกรอง"}</h3></div><div>{historyScene && <><Source>{historyScene.provenance}</Source> <Source>{historyScene.confidence}</Source></>}</div></div>
+                  <div className="panel-head"><div><p className="kicker">HISTORICAL REPLAY · เล่นภาพย้อนหลังตามเวลา</p><h3>{historyScene ? `${historyScene.date} · ${historyScene.sensor}` : "ไม่มีภาพในตัวกรอง"}</h3></div><div>{historyScene && <><Source>{historyScene.provenance}</Source> <Source>{historyScene.confidence}</Source></>}</div></div>
                   <div className="history-toolbar">
                     <label>ดาวเทียม<select value={historySensor} onChange={(event) => { const value = event.target.value as SentinelSensor; setHistorySensor(value); setHistoryMode(value === "Sentinel-2" ? "true_color" : "vv"); }}><option>Sentinel-2</option><option>Sentinel-1</option></select></label>
                     <label>ปี<select value={historyYear} onChange={(event) => setHistoryYear(event.target.value)}><option value="all">ทุกปี</option>{historyYears.map((year) => <option key={year}>{year}</option>)}</select></label>
@@ -654,17 +868,20 @@ export default function RiceTwinDashboard() {
                     <label>พื้นหลัง<select value={basemap} onChange={(event) => setBasemap(event.target.value as "satellite" | "streets")}><option value="satellite">ภาพถ่าย Esri</option><option value="streets">OpenStreetMap</option></select></label>
                   </div>
                   {historyScene && historyCoordinates && (
-                    <div className="history-map-grid">
-                      <InteractiveMap key={`history-${historyScene.image_id}-${historyMode}`} sceneId={historyScene.image_id} band={historyMode} assetRoot="historical-scenes" basemap={basemap} opacity={0.8} overlayVisible coordinates={historyCoordinates} className="history-map" />
+                    <div className={`history-map-grid ${historyPlaying ? "is-playing" : ""}`}>
+                      <div className="history-map-stage">
+                        <InteractiveMap sceneId={historyScene.image_id} band={historyMode} assetRoot="historical-scenes" basemap={basemap} opacity={0.8} overlayVisible coordinates={historyCoordinates} className="history-map" />
+                        {historyPlaying && <span className="history-playing-badge"><i /> กำลังเล่น · โหลดภาพถัดไปรอไว้แล้ว</span>}
+                      </div>
                       <aside className="history-scene-meta">
-                        <StateRow label="Acquired" value={historyScene.date} source="OBSERVED" />
-                        <StateRow label="Sensor" value={historyScene.sensor} source="OBSERVED" />
-                        <StateRow label="Image quality" value={`${historyScene.quality.toFixed(1)} / 100`} source="DERIVED" />
-                        <StateRow label="Plot coverage" value={`${historyScene.plot_coverage_percent.toFixed(1)}%`} source="DERIVED" />
-                        <StateRow label="Vegetation" value={historyScene.vegetation_score?.toFixed(3) ?? "—"} source="DERIVED" />
-                        <StateRow label="Wetness candidate" value={historyScene.water_candidate_fraction == null ? "—" : `${(historyScene.water_candidate_fraction * 100).toFixed(1)}%`} source="DERIVED" />
-                        <StateRow label="Derived state" value={historyScene.derived_field_state?.state ?? "surface candidate"} source="ESTIMATED" />
-                        <p>{historyScene.derived_field_state?.explanation ?? historyScene.limitations[0]}</p>
+                        <StateRow label="วันที่ถ่าย · Acquired" value={historyScene.date} source="OBSERVED" />
+                        <StateRow label="ดาวเทียม · Sensor" value={historyScene.sensor} source="OBSERVED" />
+                        <StateRow label="คุณภาพภาพ · Image quality" value={`${historyScene.quality.toFixed(1)} / 100`} source="DERIVED" />
+                        <StateRow label="ครอบคลุมแปลง · Plot coverage" value={`${historyScene.plot_coverage_percent.toFixed(1)}%`} source="DERIVED" />
+                        <StateRow label="พืชพรรณ · Vegetation" value={historyScene.vegetation_score?.toFixed(3) ?? "—"} source="DERIVED" />
+                        <StateRow label="Candidate ความเปียก · Wetness" value={historyScene.water_candidate_fraction == null ? "—" : `${(historyScene.water_candidate_fraction * 100).toFixed(1)}%`} source="DERIVED" />
+                        <StateRow label="สถานะประมาณการ · Derived state" value={fieldStateThai[historyScene.derived_field_state?.state ?? ""] ?? "candidate สภาพพื้นผิว"} source="ESTIMATED" />
+                        <p>{explanationThai[historyScene.derived_field_state?.explanation ?? ""] ?? "การตีความนี้เป็น candidate จากภาพ ต้องตรวจยืนยันกับข้อมูลภาคสนาม"}</p>
                       </aside>
                     </div>
                   )}
@@ -678,28 +895,67 @@ export default function RiceTwinDashboard() {
                 </section>
 
                 <section className="panel">
-                  <div className="panel-head"><div><p className="kicker">RAW + ROLLING MEDIAN · NO INTERPOLATION</p><h3>Vegetation & wetness timeline</h3></div><Source>DERIVED</Source></div>
-                  <div className="history-chart"><svg viewBox="0 0 1000 230" role="img" aria-label="กราฟ vegetation และ wetness ย้อนหลัง"><g stroke="#e2e9e5">{[30,72.5,115,157.5,200].map((y) => <line key={y} x1="30" x2="970" y1={y} y2={y} />)}</g><polyline points={historyChart.raw} fill="none" stroke="#75a88f" strokeWidth="1.5" strokeDasharray="3 3" /><polyline points={historyChart.smooth} fill="none" stroke="#176b49" strokeWidth="3" /><polyline points={historyChart.wet} fill="none" stroke="#3b7fa0" strokeWidth="2" /></svg></div>
-                  <div className="history-legend"><i className="raw" /> NDVI raw <i className="smooth" /> rolling median <i className="wet" /> wetness candidate <span>ไม่เติมช่องว่างข้อมูลอัตโนมัติ</span></div>
+                  <div className="panel-head"><div><p className="kicker">ข้อมูลดิบ + ค่ากลางเคลื่อนที่ · ไม่เติมข้อมูลระหว่างช่องว่าง</p><h3>Vegetation & wetness timeline · แนวโน้มพืชพรรณและความเปียก</h3></div><Source>DERIVED</Source></div>
+                  {historyReading && (
+                    <div className="history-current-reading">
+                      <div>
+                        <span>{historyChart.active?.nearest ? "ภาพ Sentinel‑2 ที่ใกล้วัน replay ที่สุด" : "ค่าของภาพที่กำลังแสดง"}</span>
+                        <b>{historyReading.item.date}</b>
+                        <p>{historyReading.vegetationText} และ{historyReading.wetnessText}</p>
+                        <small>เป็นสัญญาณจากผิวแปลง ไม่ใช่การวัดระดับน้ำ และไม่ยืนยัน AWD โดยลำพัง</small>
+                      </div>
+                      <div className="history-value-cards">
+                        <article><span>NDVI ดิบ</span><b>{historyReading.item.vegetation_score?.toFixed(3) ?? "—"}</b><small>ค่าความเขียวจากภาพวันนั้น</small></article>
+                        <article><span>ค่ากลางเคลื่อนที่</span><b>{historyReading.item.smoothed_vegetation_score?.toFixed(3) ?? "—"}</b><small>ลดผลจากภาพที่แกว่งผิดปกติ</small></article>
+                        <article><span>Candidate ความเปียก</span><b>{historyReading.item.water_candidate_fraction == null ? "—" : `${(historyReading.item.water_candidate_fraction * 100).toFixed(1)}%`}</b><small>สัดส่วนพื้นที่ที่มีสัญญาณเปียก</small></article>
+                      </div>
+                    </div>
+                  )}
+                  <div className="history-chart">
+                    <svg viewBox="0 0 1000 280" role="img" aria-label="กราฟแนวโน้มพืชพรรณและ candidate ความเปียกย้อนหลัง">
+                      <g className="chart-grid">
+                        {[-0.25, 0, 0.25, 0.5, 0.75, 1].map((value) => {
+                          const y = historyChart.plot.top + ((historyChart.plot.maxValue - value) / (historyChart.plot.maxValue - historyChart.plot.minValue)) * (historyChart.plot.height - historyChart.plot.top - historyChart.plot.bottom);
+                          return <g key={value}><line x1={historyChart.plot.left} x2={historyChart.plot.width - historyChart.plot.right} y1={y} y2={y} /><text x={historyChart.plot.left - 11} y={y + 4} textAnchor="end">{value.toFixed(2)}</text></g>;
+                        })}
+                        {historyChart.years.map((marker) => <g key={marker.year}><line x1={marker.x} x2={marker.x} y1={historyChart.plot.top} y2={historyChart.plot.height - historyChart.plot.bottom} /><text x={marker.x + 4} y={historyChart.plot.height - 17}>{marker.year}</text></g>)}
+                      </g>
+                      <text className="chart-axis-title" x="14" y="145" transform="rotate(-90 14 145)">ค่าดัชนี 0–1</text>
+                      <text className="chart-axis-title" x="500" y="274" textAnchor="middle">เวลา · ช่องว่างของเส้นหมายถึงไม่มีภาพที่ใช้ได้</text>
+                      {historyChart.raw.map((points, index) => <polyline key={`raw-${index}`} points={points} fill="none" stroke="#75a88f" strokeWidth="1.5" strokeDasharray="3 3" />)}
+                      {historyChart.smooth.map((points, index) => <polyline key={`smooth-${index}`} points={points} fill="none" stroke="#176b49" strokeWidth="3" />)}
+                      {historyChart.wet.map((points, index) => <polyline key={`wet-${index}`} points={points} fill="none" stroke="#3b7fa0" strokeWidth="2" />)}
+                      {historyChart.active && <g className="chart-active"><line x1={historyChart.active.x} x2={historyChart.active.x} y1={historyChart.plot.top} y2={historyChart.plot.height - historyChart.plot.bottom} /><circle cx={historyChart.active.x} cy={historyChart.active.rawY} r="4" className="raw-dot" /><circle cx={historyChart.active.x} cy={historyChart.active.smoothY} r="5" className="smooth-dot" /><circle cx={historyChart.active.x} cy={historyChart.active.wetY} r="4" className="wet-dot" /></g>}
+                    </svg>
+                  </div>
+                  <div className="history-legend"><i className="raw" /> NDVI ดิบ <i className="smooth" /> ค่ากลางเคลื่อนที่ <i className="wet" /> Candidate ความเปียก <span>เส้นตั้งสีทอง = วันที่ที่กำลัง replay</span></div>
+                  <div className="history-chart-guide">
+                    <h4>วิธีอ่านกราฟนี้</h4>
+                    <div>
+                      <article><b>1 · ดูเส้นเขียวเข้ม</b><p>เส้นสูงขึ้นหมายถึงสัญญาณพืชพรรณเขียวและหนาแน่นขึ้น เส้นลดลงอาจสัมพันธ์กับแปลงโล่ง การสุกแก่ หรือการเก็บเกี่ยว แต่ต้องยืนยันภาคสนาม</p></article>
+                      <article><b>2 · เทียบเส้นสีน้ำเงิน</b><p>ค่าสูงขึ้นหมายถึงพบ candidate ความเปียกบนผิวแปลงมากขึ้น ไม่ใช่ระดับน้ำเป็นเซนติเมตรและไม่ใช่หลักฐาน AWD โดยตรง</p></article>
+                      <article><b>3 · สังเกตช่องว่าง</b><p>ช่วงที่เส้นขาดคือไม่มีภาพคุณภาพพอ ระบบไม่สร้างค่าปลอมเชื่อมช่องว่าง และแกนนอนใช้เวลาจริงเพื่อให้เห็นช่วงข้อมูลหาย</p></article>
+                    </div>
+                  </div>
                 </section>
 
                 <section className="two-col">
-                  <article className="panel"><div className="panel-head"><div><p className="kicker">DATE WINDOWS</p><h3>Probable crop cycles</h3></div><span className="count">{historical.cycles.length}</span></div><div className="history-cycles">{historical.cycles.map((cycle, index) => <div key={cycle.season_id}><b>Cycle {index + 1} · peak {cycle.probable_peak_date}</b><span>ปลูก {cycle.probable_planting_window.join(" – ")}</span><span>เก็บเกี่ยว {cycle.probable_harvest_window.join(" – ")}</span><small>{cycle.confidence} · {cycle.number_of_supporting_images} supporting images · ESTIMATED</small></div>)}</div></article>
-                  <article className="panel table-panel"><div className="panel-head"><div><p className="kicker">YEAR COMPARISON</p><h3>Three-year baseline</h3></div></div><table><thead><tr><th>ปี</th><th>รอบ</th><th>พื้นที่ปลูก (ไร่)</th><th>ภาพ</th><th>Confidence</th></tr></thead><tbody>{historical.baseline.years.map((year: any) => <tr key={year.year}><td>{year.year}</td><td>{year.probable_crop_cycles}</td><td>{year.cultivated_area_range_rai.join("–")}</td><td>{year.image_count}</td><td><Source>{year.confidence}</Source></td></tr>)}</tbody></table></article>
+                  <article className="panel"><div className="panel-head"><div><p className="kicker">ช่วงวันที่โดยประมาณ · DATE WINDOWS</p><h3>รอบปลูกที่เป็นไปได้ · Probable crop cycles</h3></div><span className="count">{historical.cycles.length}</span></div><div className="history-cycles">{historical.cycles.map((cycle, index) => <div key={cycle.season_id}><b>รอบ {index + 1} · จุดสูงสุดโดยประมาณ {cycle.probable_peak_date}</b><span>ปลูก {cycle.probable_planting_window.join(" – ")}</span><span>เก็บเกี่ยว {cycle.probable_harvest_window.join(" – ")}</span><small>{sourceThai[cycle.confidence] ?? cycle.confidence} · ภาพสนับสนุน {cycle.number_of_supporting_images} ภาพ · ค่าประมาณ</small></div>)}</div></article>
+                  <article className="panel table-panel"><div className="panel-head"><div><p className="kicker">เปรียบเทียบรายปี · YEAR COMPARISON</p><h3>ฐานข้อมูลย้อนหลังสามปี · Three-year baseline</h3></div></div><table><thead><tr><th>ปี</th><th>รอบ</th><th>พื้นที่ปลูก (ไร่)</th><th>ภาพ</th><th>ความมั่นใจ</th></tr></thead><tbody>{historical.baseline.years.map((year: any) => <tr key={year.year}><td>{year.year}</td><td>{year.probable_crop_cycles}</td><td>{year.cultivated_area_range_rai.join("–")}</td><td>{year.image_count}</td><td><Source>{year.confidence}</Source></td></tr>)}</tbody></table></article>
                 </section>
 
-                <section className="panel"><div className="panel-head"><div><p className="kicker">NATIVE 10 M GRID · NO OVERSAMPLING</p><h3>Recurring zones</h3></div><Source>DERIVED</Source></div><div className="history-zone-grid">{historical.zones.map((zone) => <article key={zone.zone_id}><Source>{zone.provenance}</Source><h3>{zone.zone_type}</h3><strong>{zone.number_of_occurrences} / {zone.number_of_usable_images}</strong><p>พบในปี {zone.years_detected.join(", ")} · {zone.recommended_field_check}</p></article>)}</div></section>
+                <section className="panel"><div className="panel-head"><div><p className="kicker">กริดจริง 10 เมตร · ไม่เพิ่มความละเอียดเทียม</p><h3>พื้นที่ที่พบรูปแบบซ้ำ · Recurring zones</h3></div><Source>DERIVED</Source></div><div className="history-zone-grid">{historical.zones.map((zone) => <article key={zone.zone_id}><Source>{zone.provenance}</Source><h3>{zoneThai[zone.zone_type] ?? zone.zone_type}</h3><small>{zone.zone_type}</small><strong>{zone.number_of_occurrences} / {zone.number_of_usable_images}</strong><p>พบในปี {zone.years_detected.join(", ")} · แนะนำให้ลงตรวจภาคสนามในพื้นที่นี้</p></article>)}</div></section>
 
-                <section className="panel table-panel"><div className="panel-head"><div><p className="kicker">BASELINE EVIDENCE MATRIX</p><h3>สิ่งที่ภาพรองรับและไม่รองรับ</h3></div></div><table><thead><tr><th>Claim</th><th>Support</th><th>Provenance</th><th>Allowed conclusion</th></tr></thead><tbody>{historical.evidence.map((item) => <tr key={item.item_id}><td><b>{item.claim_label}</b></td><td><span className={`history-support ${item.support_level.toLowerCase()}`}>{item.support_level}</span></td><td><Source>{item.provenance}</Source></td><td>{item.conclusion}</td></tr>)}</tbody></table></section>
+                <section className="panel table-panel"><div className="panel-head"><div><p className="kicker">ตารางหลักฐานของ baseline · EVIDENCE MATRIX</p><h3>สิ่งที่ภาพรองรับและไม่รองรับ</h3></div></div><table><thead><tr><th>ข้อกล่าวอ้าง · Claim</th><th>ระดับการรองรับ</th><th>ที่มาของผล</th><th>ข้อสรุปที่อนุญาต</th></tr></thead><tbody>{historical.evidence.map((item) => <tr key={item.item_id}><td><b>{evidenceThai[item.claim_label]?.[0] ?? item.claim_label}</b><small>{item.claim_label}</small></td><td><span className={`history-support ${item.support_level.toLowerCase()}`}>{supportThai[item.support_level] ?? item.support_level}<small>{item.support_level}</small></span></td><td><Source>{item.provenance}</Source></td><td>{evidenceThai[item.claim_label]?.[1] ?? item.conclusion}<small>{item.conclusion}</small></td></tr>)}</tbody></table></section>
 
-                <section className="panel"><div className="panel-head"><div><p className="kicker">PROPOSED · NOT FIELD VERIFIED</p><h3>Sensor-location proposals</h3></div><Source>DERIVED</Source></div><div className="history-sensor-grid">{historical.sensors.map((proposal) => <article key={proposal.proposal_id}><div><Source>{proposal.status}</Source> <Source>{proposal.field_verification_status}</Source></div><h3>{proposal.sensor_type}</h3><p>{proposal.rationale}</p><small>{proposal.latitude.toFixed(6)}, {proposal.longitude.toFixed(6)} · {proposal.confidence}</small></article>)}</div></section>
+                <section className="panel"><div className="panel-head"><div><p className="kicker">ข้อเสนอ · ยังไม่ตรวจยืนยันภาคสนาม</p><h3>ตำแหน่งเซนเซอร์ที่เสนอ · Sensor-location proposals</h3></div><Source>DERIVED</Source></div><div className="history-sensor-grid">{historical.sensors.map((proposal) => <article key={proposal.proposal_id}><div><Source>{proposal.status}</Source> <Source>{proposal.field_verification_status}</Source></div><h3>{sensorTypeThai[proposal.sensor_type] ?? proposal.sensor_type}</h3><small>{proposal.sensor_type}</small><p>{sensorRationaleThai[proposal.sensor_type] ?? proposal.rationale}</p><small>{proposal.latitude.toFixed(6)}, {proposal.longitude.toFixed(6)} · ความมั่นใจ {sourceThai[proposal.confidence] ?? proposal.confidence}</small></article>)}</div></section>
 
                 <section className="two-col">
-                  <article className="panel"><div className="panel-head"><div><p className="kicker">SEPARATE SCORE COMPONENTS</p><h3>Quality & confidence</h3></div></div><div className="history-quality">{Object.entries(historical.baseline.quality_scores).map(([key, value]) => <div key={key}><span>{key.replaceAll("_", " ")}</span><b>{String(value)}%</b><i><em style={{ width: `${value}%` }} /></i></div>)}</div></article>
-                  <article className="panel"><div className="panel-head"><div><p className="kicker">AUDITABLE STATIC EXPORTS</p><h3>ดาวน์โหลดผลพร้อม metadata</h3></div></div><div className="history-exports"><a href="historical/exports/timeline.csv">CSV time series</a><a href="historical/exports/historical-baseline.json">JSON baseline</a><a href="historical/exports/recurring-zones.geojson">GeoJSON zones</a><a href="historical/exports/sensor-proposals.geojson">GeoJSON sensors</a><a href="historical/exports/executive-report.html">Print-ready report</a></div></article>
+                  <article className="panel"><div className="panel-head"><div><p className="kicker">แยกองค์ประกอบคะแนนแต่ละด้าน</p><h3>คุณภาพและความมั่นใจ · Quality & confidence</h3></div></div><div className="history-quality">{Object.entries(historical.baseline.quality_scores).map(([key, value]) => <div key={key}><span>{qualityThai[key] ?? key.replaceAll("_", " ")}<small>{key.replaceAll("_", " ")}</small></span><b>{String(value)}%</b><i><em style={{ width: `${value}%` }} /></i></div>)}</div></article>
+                  <article className="panel"><div className="panel-head"><div><p className="kicker">ไฟล์ผลลัพธ์คงที่ที่ตรวจสอบย้อนหลังได้</p><h3>ดาวน์โหลดผลพร้อม metadata · ข้อมูลกำกับ</h3></div></div><div className="history-exports"><a href="historical/exports/timeline.csv">CSV · ชุดข้อมูลตามเวลา</a><a href="historical/exports/historical-baseline.json">JSON · ผล baseline</a><a href="historical/exports/recurring-zones.geojson">GeoJSON · พื้นที่พบซ้ำ</a><a href="historical/exports/sensor-proposals.geojson">GeoJSON · ตำแหน่งเซนเซอร์</a><a href="historical/exports/executive-report.html">รายงานพร้อมพิมพ์</a></div></article>
                 </section>
 
-                <section className="history-limitations"><p className="kicker">REQUIRED SAFEGUARDS</p><h2>ข้อจำกัดที่ต้องอ่านก่อนใช้ผล</h2><ul>{historical.baseline.limitations.map((item: string) => <li key={item}>{item}</li>)}</ul><small>Static snapshot generated {historical.generated_at} · {boundaryWarning}</small></section>
+                <section className="history-limitations"><p className="kicker">ข้อควรระวังที่ต้องแสดง · REQUIRED SAFEGUARDS</p><h2>ข้อจำกัดที่ต้องอ่านก่อนใช้ผล</h2><ul>{historical.baseline.limitations.map((item: string) => <li key={item}><b>{limitationThai[item] ?? "ข้อจำกัดของข้อมูลภาพย้อนหลัง"}</b><small>{item}</small></li>)}</ul><small>สร้างชุดข้อมูลคงที่เมื่อ {historical.generated_at} · ขอบเขต DEMO-PLOT-001 เป็นขอบเขตสาธิต ไม่ใช่แนวเขตที่ดินที่สำรวจหรือรับรองอย่างเป็นทางการ</small></section>
               </>
             )}
           </div>

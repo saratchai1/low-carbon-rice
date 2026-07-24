@@ -68,7 +68,13 @@ test("ships the historical baseline bundle and both sensor archives", async () =
     await readFile(new URL("../public/historical/data.json", import.meta.url), "utf8"),
   );
   assert.match(dashboardSource, /Historical Baseline Explorer/);
-  assert.match(dashboardSource, /PROPOSED · NOT FIELD VERIFIED/);
+  assert.match(dashboardSource, /ข้อเสนอ · ยังไม่ตรวจยืนยันภาคสนาม/);
+  assert.match(dashboardSource, /HISTORICAL REPLAY · เล่นภาพย้อนหลังตามเวลา/);
+  assert.match(dashboardSource, /วิธีอ่านกราฟนี้/);
+  assert.match(dashboardSource, /ช่องว่างของเส้นหมายถึงไม่มีภาพที่ใช้ได้/);
+  assert.match(dashboardSource, /source\.updateImage/);
+  assert.match(dashboardSource, /HISTORY_PREFETCH_FRAMES = 8/);
+  assert.doesNotMatch(dashboardSource, /key=\{`history-\$\{historyScene\.image_id\}/);
   assert.equal(historical.public_static_snapshot, true);
   assert.equal(historical.timeline.length, 264);
   assert.equal(historical.baseline.usable_image_count, 213);
