@@ -57,5 +57,7 @@ test("ships production metadata and satellite assets", async () => {
   assert.match(packageJson, /maplibre-gl/);
   assert.match(dashboardSource, /Sentinel‑1 Radar/);
   assert.match(dashboardSource, /22 SCENES · 9 MODES/);
+  assert.match(dashboardSource, /ตั้งค่าความทึบแบบด่วน/);
+  assert.match(dashboardSource, /onInput=/);
   assert.ok(dashboardSource.includes('key={`${sceneId}-${band}`}'));
 });

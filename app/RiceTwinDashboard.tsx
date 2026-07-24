@@ -255,16 +255,27 @@ function InteractiveMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.isStyleLoaded()) return;
-    if (map.getLayer("basemap-satellite")) map.setLayoutProperty("basemap-satellite", "visibility", basemap === "satellite" ? "visible" : "none");
-    if (map.getLayer("basemap-streets")) map.setLayoutProperty("basemap-streets", "visibility", basemap === "streets" ? "visible" : "none");
+    if (!map) return;
+    const applyBasemap = () => {
+      if (map.getLayer("basemap-satellite")) map.setLayoutProperty("basemap-satellite", "visibility", basemap === "satellite" ? "visible" : "none");
+      if (map.getLayer("basemap-streets")) map.setLayoutProperty("basemap-streets", "visibility", basemap === "streets" ? "visible" : "none");
+    };
+    if (map.getLayer("basemap-satellite")) applyBasemap();
+    else map.once("load", applyBasemap);
+    return () => map.off("load", applyBasemap);
   }, [basemap]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map?.isStyleLoaded() || !map.getLayer("sentinel-overlay")) return;
-    map.setLayoutProperty("sentinel-overlay", "visibility", overlayVisible ? "visible" : "none");
-    map.setPaintProperty("sentinel-overlay", "raster-opacity", opacity);
+    if (!map) return;
+    const applyOverlayStyle = () => {
+      if (!map.getLayer("sentinel-overlay")) return;
+      map.setLayoutProperty("sentinel-overlay", "visibility", overlayVisible ? "visible" : "none");
+      map.setPaintProperty("sentinel-overlay", "raster-opacity", opacity);
+    };
+    if (map.getLayer("sentinel-overlay")) applyOverlayStyle();
+    else map.once("load", applyOverlayStyle);
+    return () => map.off("load", applyOverlayStyle);
   }, [overlayVisible, opacity]);
 
   return <div ref={containerRef} className={`interactive-map ${className}`} data-testid="interactive-map" aria-label="แผนที่แปลงข้าวแบบซูมและลากได้" />;
@@ -478,8 +489,11 @@ export default function RiceTwinDashboard() {
                 </div>
                 <div className="imagery-tools">
                   <label><input type="checkbox" checked={overlayVisible} onChange={(event) => setOverlayVisible(event.target.checked)} /> แสดงภาพ {sensor}</label>
-                  <label>ความทึบ <input type="range" min="0" max="1" step="0.05" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} /><b>{Math.round(opacity * 100)}%</b></label>
-                  <span>ใช้ปุ่ม +/− หรือ scroll เพื่อซูม · ลากเพื่อเลื่อนแผนที่</span>
+                  <label>ความทึบ <input aria-label="ปรับความทึบภาพดาวเทียม" type="range" min="0" max="1" step="0.05" value={opacity} onInput={(event) => setOpacity(Number(event.currentTarget.value))} onChange={(event) => setOpacity(Number(event.target.value))} /><b>{Math.round(opacity * 100)}%</b></label>
+                  <div className="opacity-presets" role="group" aria-label="ตั้งค่าความทึบแบบด่วน">
+                    {[0, 0.5, 1].map((value) => <button type="button" className={opacity === value ? "active" : ""} key={value} onClick={() => setOpacity(value)}>{value * 100}%</button>)}
+                  </div>
+                  <span>พื้นที่สี่เหลี่ยมคือ footprint จริงของภาพ · ใช้ +/− หรือ scroll เพื่อซูม</span>
                 </div>
                 <InteractiveMap key={`${sceneId}-${band}`} sceneId={sceneId} band={band} basemap={basemap} opacity={opacity} overlayVisible={overlayVisible} coordinates={selectedScene.coordinates} className="satellite-map" />
                 <div className="satellite-help"><b>{selectedMode[1]}</b><span>{selectedMode[2]} — เป็น analytical indicator ไม่ใช่หลักฐานตรงของ AWD compliance</span></div>
