@@ -31,7 +31,7 @@ test("server-renders the Rice Twin command center", async () => {
   assert.match(html, /Command Center/);
   assert.match(html, /DEMO-PLOT-001 is a synthetic demonstration boundary/);
   assert.match(html, /MRV readiness/);
-  assert.match(html, /Sentinel‑2 · 12 วัน · ซูม\/ลากได้/);
+  assert.match(html, /วัน · ซูม\/ลากได้/);
   assert.match(html, /data-testid="interactive-map"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
@@ -48,8 +48,14 @@ test("ships production metadata and satellite assets", async () => {
     access(new URL("../public/satellite/ndvi.png", import.meta.url)),
     access(new URL("../public/sentinel-scenes/catalog-0907d72c0c76544d5c0264e2/rice_true_color.png", import.meta.url)),
     access(new URL("../public/sentinel-scenes/catalog-cbe84301af5f33a6cbf8539f/rice_ndvi.png", import.meta.url)),
+    access(new URL("../public/sentinel-scenes/catalog-2bb90bd91fa6fb09825d1ed8/rice_sar_vv.png", import.meta.url)),
+    access(new URL("../public/sentinel-scenes/catalog-9fbe50595b167178ca5a71f6/rice_sar_diff.png", import.meta.url)),
   ]);
   const packageJson = await readFile(new URL("../package.json", import.meta.url), "utf8");
+  const dashboardSource = await readFile(new URL("../app/RiceTwinDashboard.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
   assert.match(packageJson, /maplibre-gl/);
+  assert.match(dashboardSource, /Sentinel‑1 Radar/);
+  assert.match(dashboardSource, /22 SCENES · 9 MODES/);
+  assert.ok(dashboardSource.includes('key={`${sceneId}-${band}`}'));
 });

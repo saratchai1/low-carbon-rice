@@ -53,7 +53,10 @@ const scenarios = [
   ["ฤดูปลูกและ MRV", "เหตุการณ์ตั้งแต่ขึ้นทะเบียนถึงตรวจความพร้อม"],
 ];
 
-const bandModes = [
+type SentinelSensor = "Sentinel-2" | "Sentinel-1";
+type ImageryCoordinates = [[number, number], [number, number], [number, number], [number, number]];
+
+const sentinel2Modes = [
   ["rice_true_color", "สีธรรมชาติ", "ตรวจเมฆ คันนา และสภาพผิวทั่วไป"],
   ["rice_false_color", "สีเท็จพืชพรรณ", "แยกความหนาแน่นของพืชจากพื้นดินและน้ำ"],
   ["rice_ndvi", "NDVI", "ความเขียวและ vigor ของข้าว"],
@@ -62,26 +65,56 @@ const bandModes = [
   ["rice_evi", "EVI", "พืชหนาแน่นและผลกระทบบรรยากาศ"],
 ];
 
-const sentinelScenes = [
-  { id: "catalog-0907d72c0c76544d5c0264e2", date: "19 ก.ค. 2569", iso: "2026-07-19", cloud: 8 },
-  { id: "catalog-8e295fc83b2e6b62b3dbbee8", date: "14 ก.ค. 2569", iso: "2026-07-14", cloud: 67 },
-  { id: "catalog-779079d7594e6a5afb3b96a8", date: "9 ก.ค. 2569", iso: "2026-07-09", cloud: 71 },
-  { id: "catalog-d54257f5db3c5c55526d8520", date: "4 ก.ค. 2569", iso: "2026-07-04", cloud: 98 },
-  { id: "catalog-71685401b07bd42aad517c48", date: "1 ก.ค. 2569", iso: "2026-07-01", cloud: 95 },
-  { id: "catalog-0540073f14157c7946cc6841", date: "29 มิ.ย. 2569", iso: "2026-06-29", cloud: 100 },
-  { id: "catalog-cbe84301af5f33a6cbf8539f", date: "24 มิ.ย. 2569", iso: "2026-06-24", cloud: 5 },
-  { id: "catalog-19de555b76482adb5a8c3577", date: "19 มิ.ย. 2569", iso: "2026-06-19", cloud: 100 },
-  { id: "catalog-ad4d2d1ed58b5bb2b1d5af08", date: "14 มิ.ย. 2569", iso: "2026-06-14", cloud: 17 },
-  { id: "catalog-ce929279a4ac6a6037419361", date: "11 มิ.ย. 2569", iso: "2026-06-11", cloud: 65 },
-  { id: "catalog-cdac82b94f9bcab33301f7dc", date: "9 มิ.ย. 2569", iso: "2026-06-09", cloud: 98 },
-  { id: "catalog-14817ad500100cf5a4363515", date: "25 พ.ค. 2569", iso: "2026-05-25", cloud: 78 },
+const sentinel1Modes = [
+  ["rice_sar_vv", "Radar VV", "ผิวน้ำและโครงสร้างแปลง มองผ่านเมฆได้"],
+  ["rice_sar_vh", "Radar VH", "การกระเจิงจากลำต้นและทรงพุ่มข้าว"],
+  ["rice_sar_diff", "Radar VH−VV", "ความเปลี่ยนแปลงร่วมกันของน้ำและโครงสร้างข้าว"],
 ];
 
-const imageryCoordinates: [[number, number], [number, number], [number, number], [number, number]] = [
+const sentinel2Coordinates: ImageryCoordinates = [
   [100.26460859984597, 14.4799171060011],
   [100.28485500871204, 14.4799171060011],
   [100.28485500871204, 14.459559806312308],
   [100.26460859984597, 14.459559806312308],
+];
+
+const sentinel1Coordinates: ImageryCoordinates = [
+  [100.26462000860424, 14.479836420011923],
+  [100.2848653877068, 14.479836420011923],
+  [100.2848653877068, 14.459659907243962],
+  [100.26462000860424, 14.459659907243962],
+];
+
+const sentinelScenes: {
+  id: string;
+  date: string;
+  iso: string;
+  sensor: SentinelSensor;
+  cloud?: number;
+  coordinates: ImageryCoordinates;
+}[] = [
+  { id: "catalog-2bb90bd91fa6fb09825d1ed8", date: "21 ก.ค. 2569", iso: "2026-07-21", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-0907d72c0c76544d5c0264e2", date: "19 ก.ค. 2569", iso: "2026-07-19", sensor: "Sentinel-2", cloud: 8, coordinates: sentinel2Coordinates },
+  { id: "catalog-81532a58d0d6be83bd6ed732", date: "17 ก.ค. 2569", iso: "2026-07-17", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-8e295fc83b2e6b62b3dbbee8", date: "14 ก.ค. 2569", iso: "2026-07-14", sensor: "Sentinel-2", cloud: 67, coordinates: sentinel2Coordinates },
+  { id: "catalog-2bab303557a2ce204be1d07a", date: "9 ก.ค. 2569", iso: "2026-07-09", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-779079d7594e6a5afb3b96a8", date: "9 ก.ค. 2569", iso: "2026-07-09", sensor: "Sentinel-2", cloud: 71, coordinates: sentinel2Coordinates },
+  { id: "catalog-d54257f5db3c5c55526d8520", date: "4 ก.ค. 2569", iso: "2026-07-04", sensor: "Sentinel-2", cloud: 98, coordinates: sentinel2Coordinates },
+  { id: "catalog-71685401b07bd42aad517c48", date: "1 ก.ค. 2569", iso: "2026-07-01", sensor: "Sentinel-2", cloud: 95, coordinates: sentinel2Coordinates },
+  { id: "catalog-0540073f14157c7946cc6841", date: "29 มิ.ย. 2569", iso: "2026-06-29", sensor: "Sentinel-2", cloud: 100, coordinates: sentinel2Coordinates },
+  { id: "catalog-81f88f944f24c4c6ca7de748", date: "28 มิ.ย. 2569", iso: "2026-06-28", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-e89e5d13f8512bd555f4301f", date: "27 มิ.ย. 2569", iso: "2026-06-27", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-cbe84301af5f33a6cbf8539f", date: "24 มิ.ย. 2569", iso: "2026-06-24", sensor: "Sentinel-2", cloud: 5, coordinates: sentinel2Coordinates },
+  { id: "catalog-e8c97a77626802cf731742d8", date: "20 มิ.ย. 2569", iso: "2026-06-20", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-19de555b76482adb5a8c3577", date: "19 มิ.ย. 2569", iso: "2026-06-19", sensor: "Sentinel-2", cloud: 100, coordinates: sentinel2Coordinates },
+  { id: "catalog-5ff5b86132953415b4da318a", date: "16 มิ.ย. 2569", iso: "2026-06-16", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-ad4d2d1ed58b5bb2b1d5af08", date: "14 มิ.ย. 2569", iso: "2026-06-14", sensor: "Sentinel-2", cloud: 17, coordinates: sentinel2Coordinates },
+  { id: "catalog-ce929279a4ac6a6037419361", date: "11 มิ.ย. 2569", iso: "2026-06-11", sensor: "Sentinel-2", cloud: 65, coordinates: sentinel2Coordinates },
+  { id: "catalog-cdac82b94f9bcab33301f7dc", date: "9 มิ.ย. 2569", iso: "2026-06-09", sensor: "Sentinel-2", cloud: 98, coordinates: sentinel2Coordinates },
+  { id: "catalog-9fbe50595b167178ca5a71f6", date: "4 มิ.ย. 2569", iso: "2026-06-04", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-391a0aa44eb582eb67f90976", date: "3 มิ.ย. 2569", iso: "2026-06-03", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-5ff19dc89cb966f46447ce33", date: "27 พ.ค. 2569", iso: "2026-05-27", sensor: "Sentinel-1", coordinates: sentinel1Coordinates },
+  { id: "catalog-14817ad500100cf5a4363515", date: "25 พ.ค. 2569", iso: "2026-05-25", sensor: "Sentinel-2", cloud: 78, coordinates: sentinel2Coordinates },
 ];
 
 const plotRing = [
@@ -98,6 +131,7 @@ function InteractiveMap({
   basemap,
   opacity,
   overlayVisible,
+  coordinates,
   className = "",
 }: {
   sceneId: string;
@@ -105,6 +139,7 @@ function InteractiveMap({
   basemap: "satellite" | "streets";
   opacity: number;
   overlayVisible: boolean;
+  coordinates: ImageryCoordinates;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -151,7 +186,7 @@ function InteractiveMap({
         map.addSource("sentinel-overlay", {
           type: "image",
           url: imageUrl,
-          coordinates: imageryCoordinates,
+          coordinates,
         });
         map.addLayer({
           id: "sentinel-overlay",
@@ -202,14 +237,21 @@ function InteractiveMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.isStyleLoaded()) return;
-    const source = map.getSource("sentinel-overlay") as any;
-    if (source) {
-      source.updateImage({
-        url: new URL(`sentinel-scenes/${sceneId}/${band}.png`, window.location.href).href,
-        coordinates: imageryCoordinates,
-      });
-    }
-  }, [sceneId, band]);
+    if (map.getLayer("sentinel-overlay")) map.removeLayer("sentinel-overlay");
+    if (map.getSource("sentinel-overlay")) map.removeSource("sentinel-overlay");
+    map.addSource("sentinel-overlay", {
+      type: "image",
+      url: `${new URL(`sentinel-scenes/${sceneId}/${band}.png`, window.location.href).href}?layer=${encodeURIComponent(`${sceneId}-${band}`)}`,
+      coordinates,
+    });
+    map.addLayer({
+      id: "sentinel-overlay",
+      type: "raster",
+      source: "sentinel-overlay",
+      layout: { visibility: overlayVisible ? "visible" : "none" },
+      paint: { "raster-opacity": opacity },
+    }, map.getLayer("demo-plot-fill") ? "demo-plot-fill" : undefined);
+  }, [sceneId, band, coordinates]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -245,8 +287,9 @@ export default function RiceTwinDashboard() {
   const [view, setView] = useState<View>("overview");
   const [menu, setMenu] = useState(false);
   const [role, setRole] = useState("EXECUTIVE");
+  const [sensor, setSensor] = useState<SentinelSensor>("Sentinel-2");
   const [band, setBand] = useState("rice_true_color");
-  const [sceneId, setSceneId] = useState(sentinelScenes[0].id);
+  const [sceneId, setSceneId] = useState("catalog-0907d72c0c76544d5c0264e2");
   const [basemap, setBasemap] = useState<"satellite" | "streets">("satellite");
   const [overlayVisible, setOverlayVisible] = useState(true);
   const [opacity, setOpacity] = useState(0.75);
@@ -254,6 +297,10 @@ export default function RiceTwinDashboard() {
   const [tick, setTick] = useState(0);
   const [running, setRunning] = useState(false);
   const [assistant, setAssistant] = useState(false);
+  const sensorScenes = sentinelScenes.filter((scene) => scene.sensor === sensor);
+  const selectedScene = sentinelScenes.find((scene) => scene.id === sceneId) ?? sensorScenes[0];
+  const availableModes = sensor === "Sentinel-2" ? sentinel2Modes : sentinel1Modes;
+  const selectedMode = availableModes.find((mode) => mode[0] === band) ?? availableModes[0];
 
   useEffect(() => {
     if (!running || scenario === null) return;
@@ -286,6 +333,14 @@ export default function RiceTwinDashboard() {
     setView(next);
     setMenu(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const changeSensor = (next: SentinelSensor) => {
+    const nextScenes = sentinelScenes.filter((scene) => scene.sensor === next);
+    setSensor(next);
+    setSceneId(nextScenes[0].id);
+    setBand(next === "Sentinel-2" ? sentinel2Modes[0][0] : sentinel1Modes[0][0]);
+    setOverlayVisible(true);
   };
 
   return (
@@ -334,7 +389,7 @@ export default function RiceTwinDashboard() {
               <article className="panel map-panel">
                 <div className="panel-head"><div><p className="kicker">SPATIAL OPERATIONS</p><h3>แปลงสาธิตและพื้นที่ใกล้เคียง</h3></div><Source>REFERENCE</Source></div>
                 <div className="map-wrap">
-                  <InteractiveMap sceneId={sceneId} band={band} basemap={basemap} opacity={opacity} overlayVisible={overlayVisible} />
+                  <InteractiveMap sceneId={sceneId} band={band} basemap={basemap} opacity={opacity} overlayVisible={overlayVisible} coordinates={selectedScene.coordinates} />
                   <div className="map-quick-controls">
                     <label>พื้นหลัง
                       <select value={basemap} onChange={(event) => setBasemap(event.target.value as "satellite" | "streets")}>
@@ -345,7 +400,7 @@ export default function RiceTwinDashboard() {
                     <button onClick={() => changeView("satellite")}>เลือกวันที่ / สีภาพ</button>
                   </div>
                 </div>
-                <div className="map-legend"><span><i className="legend-main" />DEMO-PLOT-001</span><span>Sentinel‑2 · 12 วัน · ซูม/ลากได้</span><small>ขอบเขตเป็นข้อมูลสังเคราะห์</small></div>
+                <div className="map-legend"><span><i className="legend-main" />DEMO-PLOT-001</span><span>{sensor} · {sensorScenes.length} วัน · ซูม/ลากได้</span><small>ขอบเขตเป็นข้อมูลสังเคราะห์</small></div>
               </article>
               <article className="panel">
                 <div className="panel-head"><div><p className="kicker">TWIN STATE</p><h3>สถานะปัจจุบัน</h3></div><Source>DERIVED</Source></div>
@@ -401,31 +456,35 @@ export default function RiceTwinDashboard() {
 
         {view === "satellite" && (
           <div className="content">
-            <section className="section-title"><div><p className="kicker">RICE REMOTE SENSING</p><h2>Sentinel-2 Imagery</h2><p>เลือก 12 วันที่มีอยู่เดิมและสีที่เกี่ยวกับข้าว แล้วซูมเทียบกับแผนที่จริงได้</p></div><span className="status-pill">12 DATES · 6 MODES</span></section>
+            <section className="section-title"><div><p className="kicker">RICE REMOTE SENSING</p><h2>Sentinel Imagery</h2><p>เลือก Sentinel‑2 แบบสี/ดัชนีพืช หรือ Sentinel‑1 Radar ที่มองผ่านเมฆได้ แล้วเปรียบเทียบแต่ละวันบนแผนที่</p></div><span className="status-pill">22 SCENES · 9 MODES</span></section>
             <section className="satellite-grid">
               <article className="panel satellite-viewer">
+                <div className="sensor-tabs" role="group" aria-label="เลือกดาวเทียม">
+                  <button className={sensor === "Sentinel-2" ? "active" : ""} aria-pressed={sensor === "Sentinel-2"} onClick={() => changeSensor("Sentinel-2")}><b>Sentinel‑2</b><span>ภาพสี + ดัชนีข้าว · 12 วัน</span></button>
+                  <button className={sensor === "Sentinel-1" ? "active" : ""} aria-pressed={sensor === "Sentinel-1"} onClick={() => changeSensor("Sentinel-1")}><b>Sentinel‑1 Radar</b><span>มองผ่านเมฆ · 10 วัน</span></button>
+                </div>
                 <div className="select-row">
                   <label>วันที่ภาพ
                     <select value={sceneId} onChange={(event) => setSceneId(event.target.value)}>
-                      {sentinelScenes.map((scene) => <option value={scene.id} key={scene.id}>{scene.date} · เมฆ {scene.cloud}%</option>)}
+                      {sensorScenes.map((scene) => <option value={scene.id} key={scene.id}>{scene.date}{scene.sensor === "Sentinel-2" ? ` · เมฆ ${scene.cloud}%` : " · Radar"}</option>)}
                     </select>
                   </label>
-                  <label>สีสำหรับวิเคราะห์ข้าว
-                    <select value={band} onChange={(event) => setBand(event.target.value)}>{bandModes.map((item) => <option value={item[0]} key={item[0]}>{item[1]} · {item[2]}</option>)}</select>
+                  <label>โหมดสำหรับวิเคราะห์ข้าว
+                    <select value={band} onChange={(event) => setBand(event.target.value)}>{availableModes.map((item) => <option value={item[0]} key={item[0]}>{item[1]} · {item[2]}</option>)}</select>
                   </label>
                   <label>พื้นหลังแผนที่
                     <select value={basemap} onChange={(event) => setBasemap(event.target.value as "satellite" | "streets")}><option value="satellite">ภาพถ่ายดาวเทียม Esri</option><option value="streets">OpenStreetMap</option></select>
                   </label>
                 </div>
                 <div className="imagery-tools">
-                  <label><input type="checkbox" checked={overlayVisible} onChange={(event) => setOverlayVisible(event.target.checked)} /> แสดงภาพ Sentinel‑2</label>
+                  <label><input type="checkbox" checked={overlayVisible} onChange={(event) => setOverlayVisible(event.target.checked)} /> แสดงภาพ {sensor}</label>
                   <label>ความทึบ <input type="range" min="0" max="1" step="0.05" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} /><b>{Math.round(opacity * 100)}%</b></label>
                   <span>ใช้ปุ่ม +/− หรือ scroll เพื่อซูม · ลากเพื่อเลื่อนแผนที่</span>
                 </div>
-                <InteractiveMap sceneId={sceneId} band={band} basemap={basemap} opacity={opacity} overlayVisible={overlayVisible} className="satellite-map" />
-                <div className="satellite-help"><b>{bandModes.find((item) => item[0] === band)?.[1]}</b><span>{bandModes.find((item) => item[0] === band)?.[2]} — เป็น analytical indicator ไม่ใช่หลักฐานตรงของ AWD compliance</span></div>
+                <InteractiveMap key={`${sceneId}-${band}`} sceneId={sceneId} band={band} basemap={basemap} opacity={opacity} overlayVisible={overlayVisible} coordinates={selectedScene.coordinates} className="satellite-map" />
+                <div className="satellite-help"><b>{selectedMode[1]}</b><span>{selectedMode[2]} — เป็น analytical indicator ไม่ใช่หลักฐานตรงของ AWD compliance</span></div>
               </article>
-              <article className="panel"><div className="panel-head"><h3>Metadata & alignment</h3><Source>PUBLIC</Source></div><div className="state-list"><StateRow label="Acquired" value={sentinelScenes.find((scene) => scene.id === sceneId)?.iso ?? "—"} /><StateRow label="Cloud cover" value={`${sentinelScenes.find((scene) => scene.id === sceneId)?.cloud ?? "—"}%`} /><StateRow label="Sensor" value="Sentinel-2 L2A" /><StateRow label="CRS source" value="EPSG:32647" /><StateRow label="Display CRS" value="WGS84 / Web Mercator" /><StateRow label="Plot intersection" value="PASS" source="DERIVED" /><StateRow label="Cloud review" value="MANUAL REVIEW" source="MANUAL" /></div><div className="satellite-limit">ภาพทั้ง 12 วันใช้พิกัดที่แปลงจาก GeoTIFF จริงและวางทับในกรอบ WGS84 เดียวกัน ไม่ได้เดาตำแหน่งจาก PNG</div></article>
+              <article className="panel"><div className="panel-head"><h3>Metadata & alignment</h3><Source>PUBLIC</Source></div><div className="state-list"><StateRow label="Acquired" value={selectedScene.iso} /><StateRow label="Sensor" value={sensor === "Sentinel-2" ? "Sentinel-2 L2A" : "Sentinel-1 GRD"} /><StateRow label="Display mode" value={selectedMode[1]} /><StateRow label="Cloud cover" value={sensor === "Sentinel-2" ? `${selectedScene.cloud}%` : "ไม่ใช้กับ Radar"} /><StateRow label="CRS source" value="EPSG:32647" /><StateRow label="Display CRS" value="WGS84 / Web Mercator" /><StateRow label="Plot intersection" value="PASS" source="DERIVED" /></div><div className="satellite-limit">ภาพทั้ง 22 scene ใช้พิกัดที่แปลงจาก GeoTIFF จริงและโหลด layer ใหม่ทุกครั้งที่เปลี่ยนวันหรือโหมด เพื่อไม่ให้ภาพเดิมค้างจาก cache</div></article>
             </section>
           </div>
         )}
