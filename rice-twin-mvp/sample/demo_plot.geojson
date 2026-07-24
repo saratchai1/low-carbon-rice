@@ -1,0 +1,28 @@
+{
+  "type": "FeatureCollection",
+  "name": "rice_twin_demo_plot",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "DEMO-PLOT-001",
+      "properties": {
+        "name": "แปลงสาธิตข้าวคาร์บอนต่ำ",
+        "boundary_source": "synthetic_demo",
+        "warning": "Demonstration boundary only; not a cadastral or surveyed boundary",
+        "center_lat": 14.469728,
+        "center_lon": 100.274733,
+        "area_rai_approx": 24.0
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [100.27361993687678, 14.470451039387699],
+          [100.27584606312321, 14.470451039387699],
+          [100.27584605591937, 14.469004955303385],
+          [100.27361994408062, 14.469004955303385],
+          [100.27361993687678, 14.470451039387699]
+        ]]
+      }
+    }
+  ]
+}

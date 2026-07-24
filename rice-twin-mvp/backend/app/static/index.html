@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rice Twin — Low-carbon Rice MVP</title>
+  <link rel="stylesheet" href="/static/vendor/maplibre-gl.css" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">LOW-CARBON RICE DIGITAL TWIN</div>
+      <h1>Rice Twin Operations</h1>
+    </div>
+    <div class="topbar-meta">
+      <span class="status-dot"></span>
+      <span id="apiStatus">กำลังเชื่อมต่อระบบ</span>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="map-shell" aria-label="แผนที่แปลงนา">
+      <div id="map"></div>
+      <div class="map-banner">
+        <strong>แปลงสาธิต</strong>
+        <span>ขอบเขตรอบ 14.469728, 100.274733 เป็นรูปสมมติ ไม่ใช่แนวเขตที่ดินจริง</span>
+      </div>
+      <label class="basemap-picker">
+        <span>พื้นหลังแผนที่</span>
+        <select id="basemapSelect">
+          <option value="satellite">ภาพถ่ายดาวเทียม</option>
+          <option value="streets">แผนที่ถนน OSM</option>
+        </select>
+      </label>
+      <div class="map-legend">
+        <span><i class="legend-swatch plot"></i>ขอบเขตแปลง</span>
+        <span><i class="legend-swatch imagery"></i>ภาพดาวเทียม</span>
+      </div>
+    </section>
+
+    <aside class="side-panel">
+      <nav class="tabs" aria-label="ส่วนงาน">
+        <button class="tab active" data-tab="twin">Digital Twin</button>
+        <button class="tab" data-tab="activity">กิจกรรม</button>
+        <button class="tab" data-tab="imagery">ภาพดาวเทียม</button>
+        <button class="tab" data-tab="quality">คุณภาพข้อมูล</button>
+        <button class="tab" data-tab="carbon">Carbon MRV</button>
+      </nav>
+
+      <section id="tab-twin" class="tab-panel active">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">PLOT STATE</p>
+            <h2 id="plotName">กำลังโหลดแปลง</h2>
+          </div>
+          <span id="plotId" class="chip">—</span>
+        </div>
+
+        <div class="coordinate-box">
+          <span>ตำแหน่งกลาง</span>
+          <code id="plotCoordinate">—</code>
+        </div>
+
+        <div class="metric-grid">
+          <article class="metric-card">
+            <span>ระดับน้ำ</span>
+            <strong id="waterLevel">—</strong>
+            <small>เทียบผิวดิน</small>
+          </article>
+          <article class="metric-card">
+            <span>รอบ AWD</span>
+            <strong id="awdCycle">—</strong>
+            <small>ฤดูปัจจุบัน</small>
+          </article>
+          <article class="metric-card">
+            <span>ช่วงแห้ง</span>
+            <strong id="dryDays">—</strong>
+            <small>วันต่อเนื่อง</small>
+          </article>
+          <article class="metric-card">
+            <span>พื้นที่สาธิต</span>
+            <strong id="areaRai">—</strong>
+            <small>ไร่โดยประมาณ</small>
+          </article>
+        </div>
+
+        <div class="state-list">
+          <div><span>ระยะข้าว</span><strong id="cropStage">—</strong></div>
+          <div><span>สถานะน้ำ</span><strong id="waterState">—</strong></div>
+          <div><span>ความเสี่ยงผลผลิต</span><strong id="yieldRisk">—</strong></div>
+          <div><span>ความเชื่อมั่น MRV</span><strong id="mrvConfidence">—</strong></div>
+        </div>
+
+        <article class="recommendation-card">
+          <span>คำแนะนำปัจจุบัน</span>
+          <p id="recommendation">—</p>
+        </article>
+        <div class="action-row">
+          <button id="evaluateButton" class="button primary">ประเมินกฎ AWD</button>
+          <span id="ruleVersion" class="chip">demo rules</span>
+        </div>
+        <p class="form-message" id="evaluationMessage"></p>
+
+        <article class="quality-card">
+          <div class="quality-head">
+            <span>Data confidence</span>
+            <strong id="confidenceText">—</strong>
+          </div>
+          <div class="progress-track"><div id="confidenceBar" class="progress-bar"></div></div>
+          <small>คะแนนตัวอย่างจากความครบถ้วนของ sensor, field record และ evidence</small>
+        </article>
+
+        <div class="chart-card">
+          <div class="chart-head">
+            <span>ระดับน้ำล่าสุด</span>
+            <small>จากกิจกรรมที่มีค่าระดับน้ำ</small>
+          </div>
+          <svg id="waterChart" viewBox="0 0 520 150" role="img" aria-label="กราฟระดับน้ำ"></svg>
+        </div>
+
+        <button id="simulateButton" class="button secondary full">จำลองข้อมูลวันถัดไป</button>
+      </section>
+
+      <section id="tab-activity" class="tab-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">FIELD OPERATIONS</p>
+            <h2>บันทึกกิจกรรม</h2>
+          </div>
+        </div>
+
+        <form id="activityForm" class="form-stack">
+          <label>
+            ประเภทกิจกรรม
+            <select id="activityType" required>
+              <option value="วัดระดับน้ำ">วัดระดับน้ำ</option>
+              <option value="หยุดให้น้ำ">หยุดให้น้ำ</option>
+              <option value="ให้น้ำ">ให้น้ำ</option>
+              <option value="ระบายน้ำ">ระบายน้ำ</option>
+              <option value="ใส่ปุ๋ย">ใส่ปุ๋ย</option>
+              <option value="ตรวจภาคสนาม">ตรวจภาคสนาม</option>
+            </select>
+          </label>
+          <div class="form-row">
+            <label>
+              วันและเวลา
+              <input id="activityTime" type="datetime-local" required />
+            </label>
+            <label>
+              ระดับน้ำ (ซม.)
+              <input id="activityWater" type="number" step="0.1" placeholder="เช่น -10" />
+            </label>
+          </div>
+          <label>
+            หมายเหตุ
+            <textarea id="activityNote" rows="3" placeholder="รายละเอียดหรือหลักฐานที่เกี่ยวข้อง"></textarea>
+          </label>
+          <button class="button primary" type="submit">บันทึกกิจกรรม</button>
+          <p id="activityMessage" class="form-message"></p>
+        </form>
+
+        <div class="timeline-head">
+          <h3>Evidence timeline</h3>
+          <span id="activityCount" class="chip">0 รายการ</span>
+        </div>
+        <div id="activityTimeline" class="timeline"></div>
+      </section>
+
+      <section id="tab-imagery" class="tab-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">REMOTE SENSING</p>
+            <h2>ภาพดาวเทียม</h2>
+          </div>
+        </div>
+
+        <div class="imagery-viewer">
+          <label>
+            ภาพ Sentinel
+            <select id="imagerySceneSelect" aria-label="เลือกวันที่และดาวเทียม"></select>
+          </label>
+          <label>
+            ดูข้อมูลเกี่ยวกับข้าว
+            <select id="imageryModeSelect" aria-label="เลือกรูปแบบสีสำหรับนาข้าว"></select>
+          </label>
+          <div id="imageryModeHelp" class="mode-help">เลือกภาพเพื่อดูคำอธิบาย</div>
+          <label class="layer-switch">
+            <input id="imageryVisible" type="checkbox" checked />
+            <span>แสดงภาพ Sentinel บนแผนที่</span>
+          </label>
+          <div class="opacity-control compact">
+            <label for="imageryOpacity">ความทึบ</label>
+            <input id="imageryOpacity" type="range" min="0" max="1" value="0.72" step="0.05" />
+            <span id="opacityValue">72%</span>
+          </div>
+        </div>
+
+        <div class="section-divider"><span>เพิ่มภาพใหม่</span></div>
+
+        <div class="upload-intro">
+          <strong>อัปโหลดแบบง่าย</strong>
+          <span>เลือก GeoTIFF แล้วระบบจะอ่านวันที่ ตำแหน่ง และ band ให้เอง</span>
+        </div>
+
+        <form id="imageryForm" class="form-stack">
+          <label class="file-drop">
+            <input id="imageryFile" type="file" accept=".tif,.tiff,image/tiff" required />
+            <span class="file-icon" aria-hidden="true">＋</span>
+            <span class="file-title">เลือกไฟล์ภาพ GeoTIFF</span>
+            <small>คลิกเพื่อเลือกไฟล์ .tif หรือ .tiff</small>
+          </label>
+
+          <section id="uploadReview" class="upload-review" hidden aria-live="polite">
+            <div class="selected-file-row">
+              <span class="file-type-badge">TIF</span>
+              <div>
+                <strong id="selectedFile">—</strong>
+                <small id="selectedFileSize">—</small>
+              </div>
+              <button id="clearImageryFile" class="icon-button" type="button" aria-label="ยกเลิกไฟล์ที่เลือก">×</button>
+            </div>
+            <div class="auto-detection">
+              <div><span>วันที่ถ่าย</span><strong id="reviewDate">ระบบจะอ่านให้</strong></div>
+              <div><span>การแสดงสี</span><strong id="reviewBands">เลือก band อัตโนมัติ</strong></div>
+              <div><span>ตำแหน่งภาพ</span><strong>อ่านจาก CRS ในไฟล์</strong></div>
+            </div>
+          </section>
+
+          <details class="advanced-options">
+            <summary>
+              <span>ต้องการแก้วันที่หรือสีของภาพ?</span>
+              <small>ตัวเลือกขั้นสูง · ไม่จำเป็น</small>
+            </summary>
+            <div class="advanced-body">
+              <label>
+                วันที่ถ่ายภาพ
+                <input id="capturedAt" type="datetime-local" />
+                <small>ปล่อยว่างเพื่อให้ระบบอ่านจากชื่อไฟล์</small>
+              </label>
+              <label>
+                รูปแบบการแสดงผล
+                <select id="renderMode">
+                  <option value="auto">อัตโนมัติ — แนะนำ</option>
+                  <option value="sentinel2_true_color">Sentinel-2 สีธรรมชาติ</option>
+                  <option value="grayscale">ภาพขาวดำ / Radar</option>
+                  <option value="rgb_123">RGB band 1 / 2 / 3</option>
+                  <option value="custom">กำหนดหมายเลข band เอง</option>
+                </select>
+              </label>
+              <div id="customBandFields" class="band-grid" hidden>
+                <label>แดง <input id="redBand" type="number" min="1" value="1" /></label>
+                <label>เขียว <input id="greenBand" type="number" min="1" value="2" /></label>
+                <label>น้ำเงิน <input id="blueBand" type="number" min="1" value="3" /></label>
+              </div>
+            </div>
+          </details>
+          <button id="uploadImageryButton" class="button primary upload-button" type="submit" disabled>
+            เพิ่มภาพลงบนแผนที่
+          </button>
+          <p id="imageryMessage" class="form-message"></p>
+        </form>
+
+        <div class="timeline-head">
+          <h3>ภาพในระบบ</h3>
+          <span id="imageryCount" class="chip">0 ภาพ</span>
+        </div>
+        <div id="imageryList" class="catalog-summary"></div>
+      </section>
+
+      <section id="tab-quality" class="tab-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">TRANSPARENT DATA QUALITY</p>
+            <h2>องค์ประกอบคะแนนคุณภาพข้อมูล</h2>
+          </div>
+          <span id="qualityScore" class="chip">—</span>
+        </div>
+        <div id="qualityChecks" class="check-list"></div>
+        <div class="notice">คะแนนนี้ใช้บอกความครบถ้วนของข้อมูลสาธิต ไม่ใช่ผลการตรวจรับรอง MRV</div>
+      </section>
+
+      <section id="tab-carbon" class="tab-panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">CARBON MRV READINESS</p>
+            <h2>สถานะการคำนวณก๊าซเรือนกระจก</h2>
+          </div>
+          <span class="chip danger">ยังไม่ตั้งค่า</span>
+        </div>
+        <article class="carbon-blocked">
+          <strong id="carbonMessage">กำลังตรวจสถานะ</strong>
+          <p>ยังไม่มี methodology, emission factor หรือสูตรที่ได้รับอนุมัติ ระบบจึงไม่คำนวณและไม่กล่าวอ้างคาร์บอนเครดิต</p>
+        </article>
+        <div class="state-list">
+          <div><span>Methodology version</span><strong id="methodologyVersion">—</strong></div>
+          <div><span>Verification</span><strong id="verificationStatus">—</strong></div>
+          <div><span>Creditable amount</span><strong>ไม่คำนวณ</strong></div>
+          <div><span>Issued / retired</span><strong>ไม่คำนวณ</strong></div>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

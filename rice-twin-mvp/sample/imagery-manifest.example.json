@@ -1,0 +1,15 @@
+{
+  "plot_id": "DEMO-PLOT-001",
+  "captured_at": "2026-07-24T10:00:00+07:00",
+  "file_format": "GeoTIFF or Cloud-Optimized GeoTIFF",
+  "required": {
+    "crs_embedded": true,
+    "geotransform_embedded": true
+  },
+  "display_bands": {
+    "red_band": 1,
+    "green_band": 2,
+    "blue_band": 3
+  },
+  "notes": "For PNG/JPEG, provide a bounding box or four corner coordinates because the MVP cannot infer georeferencing from the image alone."
+}

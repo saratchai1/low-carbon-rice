@@ -1,0 +1,17 @@
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS crop_season_id VARCHAR(36);
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS recorded_by VARCHAR(120) NOT NULL DEFAULT 'local-demo-user';
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS quantity DOUBLE PRECISION;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS unit VARCHAR(40);
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS verification_status VARCHAR(30) NOT NULL DEFAULT 'unverified';
+
+ALTER TABLE imagery ADD COLUMN IF NOT EXISTS sha256 VARCHAR(64) NOT NULL DEFAULT 'legacy-unhashed';
+ALTER TABLE imagery ADD COLUMN IF NOT EXISTS footprint_intersects_plot BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE imagery ADD COLUMN IF NOT EXISTS processing_status VARCHAR(30) NOT NULL DEFAULT 'ready';
+ALTER TABLE imagery ADD COLUMN IF NOT EXISTS source VARCHAR(80) NOT NULL DEFAULT 'user_upload';
+ALTER TABLE imagery ADD COLUMN IF NOT EXISTS source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS ix_activities_crop_season_id ON activities (crop_season_id);
+CREATE INDEX IF NOT EXISTS ix_imagery_sha256 ON imagery (sha256);
+CREATE INDEX IF NOT EXISTS ix_imagery_captured_at ON imagery (captured_at);
