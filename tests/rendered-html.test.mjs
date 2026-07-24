@@ -31,6 +31,8 @@ test("server-renders the Rice Twin command center", async () => {
   assert.match(html, /Command Center/);
   assert.match(html, /DEMO-PLOT-001 is a synthetic demonstration boundary/);
   assert.match(html, /MRV readiness/);
+  assert.match(html, /Sentinel‑2 · 12 วัน · ซูม\/ลากได้/);
+  assert.match(html, /data-testid="interactive-map"/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
 
@@ -44,7 +46,10 @@ test("ships production metadata and satellite assets", async () => {
     access(new URL("../public/og.png", import.meta.url)),
     access(new URL("../public/favicon.png", import.meta.url)),
     access(new URL("../public/satellite/ndvi.png", import.meta.url)),
+    access(new URL("../public/sentinel-scenes/catalog-0907d72c0c76544d5c0264e2/rice_true_color.png", import.meta.url)),
+    access(new URL("../public/sentinel-scenes/catalog-cbe84301af5f33a6cbf8539f/rice_ndvi.png", import.meta.url)),
   ]);
   const packageJson = await readFile(new URL("../package.json", import.meta.url), "utf8");
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
+  assert.match(packageJson, /maplibre-gl/);
 });

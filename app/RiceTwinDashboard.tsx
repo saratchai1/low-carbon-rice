@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type View = "overview" | "water" | "iot" | "satellite" | "evidence" | "scenarios";
 
@@ -54,13 +54,179 @@ const scenarios = [
 ];
 
 const bandModes = [
-  ["true-color", "สีธรรมชาติ", "ตรวจเมฆ คันนา และสภาพผิวทั่วไป"],
-  ["false-color", "สีเท็จพืชพรรณ", "แยกความหนาแน่นของพืชจากพื้นดินและน้ำ"],
-  ["ndvi", "NDVI", "ความเขียวและ vigor ของข้าว"],
-  ["lswi", "LSWI", "ความชื้นในพืชและผิวดิน"],
-  ["ndwi", "NDWI", "candidate water และความเปียก"],
-  ["evi", "EVI", "พืชหนาแน่นและผลกระทบบรรยากาศ"],
+  ["rice_true_color", "สีธรรมชาติ", "ตรวจเมฆ คันนา และสภาพผิวทั่วไป"],
+  ["rice_false_color", "สีเท็จพืชพรรณ", "แยกความหนาแน่นของพืชจากพื้นดินและน้ำ"],
+  ["rice_ndvi", "NDVI", "ความเขียวและ vigor ของข้าว"],
+  ["rice_lswi", "LSWI", "ความชื้นในพืชและผิวดิน"],
+  ["rice_ndwi", "NDWI", "candidate water และความเปียก"],
+  ["rice_evi", "EVI", "พืชหนาแน่นและผลกระทบบรรยากาศ"],
 ];
+
+const sentinelScenes = [
+  { id: "catalog-0907d72c0c76544d5c0264e2", date: "19 ก.ค. 2569", iso: "2026-07-19", cloud: 8 },
+  { id: "catalog-8e295fc83b2e6b62b3dbbee8", date: "14 ก.ค. 2569", iso: "2026-07-14", cloud: 67 },
+  { id: "catalog-779079d7594e6a5afb3b96a8", date: "9 ก.ค. 2569", iso: "2026-07-09", cloud: 71 },
+  { id: "catalog-d54257f5db3c5c55526d8520", date: "4 ก.ค. 2569", iso: "2026-07-04", cloud: 98 },
+  { id: "catalog-71685401b07bd42aad517c48", date: "1 ก.ค. 2569", iso: "2026-07-01", cloud: 95 },
+  { id: "catalog-0540073f14157c7946cc6841", date: "29 มิ.ย. 2569", iso: "2026-06-29", cloud: 100 },
+  { id: "catalog-cbe84301af5f33a6cbf8539f", date: "24 มิ.ย. 2569", iso: "2026-06-24", cloud: 5 },
+  { id: "catalog-19de555b76482adb5a8c3577", date: "19 มิ.ย. 2569", iso: "2026-06-19", cloud: 100 },
+  { id: "catalog-ad4d2d1ed58b5bb2b1d5af08", date: "14 มิ.ย. 2569", iso: "2026-06-14", cloud: 17 },
+  { id: "catalog-ce929279a4ac6a6037419361", date: "11 มิ.ย. 2569", iso: "2026-06-11", cloud: 65 },
+  { id: "catalog-cdac82b94f9bcab33301f7dc", date: "9 มิ.ย. 2569", iso: "2026-06-09", cloud: 98 },
+  { id: "catalog-14817ad500100cf5a4363515", date: "25 พ.ค. 2569", iso: "2026-05-25", cloud: 78 },
+];
+
+const imageryCoordinates: [[number, number], [number, number], [number, number], [number, number]] = [
+  [100.26460859984597, 14.4799171060011],
+  [100.28485500871204, 14.4799171060011],
+  [100.28485500871204, 14.459559806312308],
+  [100.26460859984597, 14.459559806312308],
+];
+
+const plotRing = [
+  [100.27361993687678, 14.470451039387699],
+  [100.27584606312321, 14.470451039387699],
+  [100.27584605591937, 14.469004955303385],
+  [100.27361994408062, 14.469004955303385],
+  [100.27361993687678, 14.470451039387699],
+];
+
+function InteractiveMap({
+  sceneId,
+  band,
+  basemap,
+  opacity,
+  overlayVisible,
+  className = "",
+}: {
+  sceneId: string;
+  band: string;
+  basemap: "satellite" | "streets";
+  opacity: number;
+  overlayVisible: boolean;
+  className?: string;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+    let cancelled = false;
+
+    import("maplibre-gl").then((maplibreModule) => {
+      if (cancelled || !containerRef.current) return;
+      const maplibregl: any = maplibreModule.default ?? maplibreModule;
+      const imageUrl = new URL(`sentinel-scenes/${sceneId}/${band}.png`, window.location.href).href;
+      const map = new maplibregl.Map({
+        container: containerRef.current,
+        center: [100.274733, 14.469728],
+        zoom: 15.5,
+        style: {
+          version: 8,
+          sources: {
+            satellite: {
+              type: "raster",
+              tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+              tileSize: 256,
+              attribution: "Tiles © Esri",
+            },
+            streets: {
+              type: "raster",
+              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+              tileSize: 256,
+              attribution: "© OpenStreetMap contributors",
+            },
+          },
+          layers: [
+            { id: "basemap-satellite", type: "raster", source: "satellite", layout: { visibility: basemap === "satellite" ? "visible" : "none" } },
+            { id: "basemap-streets", type: "raster", source: "streets", layout: { visibility: basemap === "streets" ? "visible" : "none" } },
+          ],
+        },
+      });
+
+      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+      map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-right");
+      map.on("load", () => {
+        map.addSource("sentinel-overlay", {
+          type: "image",
+          url: imageUrl,
+          coordinates: imageryCoordinates,
+        });
+        map.addLayer({
+          id: "sentinel-overlay",
+          type: "raster",
+          source: "sentinel-overlay",
+          layout: { visibility: overlayVisible ? "visible" : "none" },
+          paint: { "raster-opacity": opacity },
+        });
+        map.addSource("demo-plot", {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: { name: "DEMO-PLOT-001" },
+            geometry: { type: "Polygon", coordinates: [plotRing] },
+          },
+        });
+        map.addLayer({
+          id: "demo-plot-fill",
+          type: "fill",
+          source: "demo-plot",
+          paint: { "fill-color": "#20a06b", "fill-opacity": 0.12 },
+        });
+        map.addLayer({
+          id: "demo-plot-line",
+          type: "line",
+          source: "demo-plot",
+          paint: { "line-color": "#ffd34d", "line-width": 4 },
+        });
+        map.on("click", "demo-plot-fill", (event: any) => {
+          new maplibregl.Popup({ offset: 12 })
+            .setLngLat(event.lngLat)
+            .setHTML("<b>DEMO-PLOT-001</b><br><span>ขอบเขตสาธิต ไม่ใช่แนวเขตที่ดินจริง</span>")
+            .addTo(map);
+        });
+        map.on("mouseenter", "demo-plot-fill", () => { map.getCanvas().style.cursor = "pointer"; });
+        map.on("mouseleave", "demo-plot-fill", () => { map.getCanvas().style.cursor = ""; });
+      });
+      mapRef.current = map;
+    });
+
+    return () => {
+      cancelled = true;
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    const source = map.getSource("sentinel-overlay") as any;
+    if (source) {
+      source.updateImage({
+        url: new URL(`sentinel-scenes/${sceneId}/${band}.png`, window.location.href).href,
+        coordinates: imageryCoordinates,
+      });
+    }
+  }, [sceneId, band]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded()) return;
+    if (map.getLayer("basemap-satellite")) map.setLayoutProperty("basemap-satellite", "visibility", basemap === "satellite" ? "visible" : "none");
+    if (map.getLayer("basemap-streets")) map.setLayoutProperty("basemap-streets", "visibility", basemap === "streets" ? "visible" : "none");
+  }, [basemap]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map?.isStyleLoaded() || !map.getLayer("sentinel-overlay")) return;
+    map.setLayoutProperty("sentinel-overlay", "visibility", overlayVisible ? "visible" : "none");
+    map.setPaintProperty("sentinel-overlay", "raster-opacity", opacity);
+  }, [overlayVisible, opacity]);
+
+  return <div ref={containerRef} className={`interactive-map ${className}`} data-testid="interactive-map" aria-label="แผนที่แปลงข้าวแบบซูมและลากได้" />;
+}
 
 function Source({ children }: { children: string }) {
   return <span className={`source source-${children.toLowerCase()}`}>{children}</span>;
@@ -79,7 +245,11 @@ export default function RiceTwinDashboard() {
   const [view, setView] = useState<View>("overview");
   const [menu, setMenu] = useState(false);
   const [role, setRole] = useState("EXECUTIVE");
-  const [band, setBand] = useState("true-color");
+  const [band, setBand] = useState("rice_true_color");
+  const [sceneId, setSceneId] = useState(sentinelScenes[0].id);
+  const [basemap, setBasemap] = useState<"satellite" | "streets">("satellite");
+  const [overlayVisible, setOverlayVisible] = useState(true);
+  const [opacity, setOpacity] = useState(0.75);
   const [scenario, setScenario] = useState<number | null>(null);
   const [tick, setTick] = useState(0);
   const [running, setRunning] = useState(false);
@@ -163,12 +333,19 @@ export default function RiceTwinDashboard() {
             <section className="overview-grid">
               <article className="panel map-panel">
                 <div className="panel-head"><div><p className="kicker">SPATIAL OPERATIONS</p><h3>แปลงสาธิตและพื้นที่ใกล้เคียง</h3></div><Source>REFERENCE</Source></div>
-                <div className="map">
-                  <div className="field field-main"><b>DEMO-PLOT-001</b><span>14.469728, 100.274733</span></div>
-                  <div className="field field-a">N-01</div><div className="field field-b">N-02</div><div className="field field-c">N-03</div><div className="field field-d">N-04</div><div className="field field-e">N-05</div>
-                  <div className="map-road road-a" /><div className="map-road road-b" /><div className="map-water" />
+                <div className="map-wrap">
+                  <InteractiveMap sceneId={sceneId} band={band} basemap={basemap} opacity={opacity} overlayVisible={overlayVisible} />
+                  <div className="map-quick-controls">
+                    <label>พื้นหลัง
+                      <select value={basemap} onChange={(event) => setBasemap(event.target.value as "satellite" | "streets")}>
+                        <option value="satellite">ภาพถ่ายดาวเทียม Esri</option>
+                        <option value="streets">แผนที่ OpenStreetMap</option>
+                      </select>
+                    </label>
+                    <button onClick={() => changeView("satellite")}>เลือกวันที่ / สีภาพ</button>
+                  </div>
                 </div>
-                <div className="map-legend"><span><i className="legend-main" />แปลงหลัก</span><span><i />แปลงใกล้เคียง</span><small>ขอบเขตทั้งหมดเป็นข้อมูลสังเคราะห์</small></div>
+                <div className="map-legend"><span><i className="legend-main" />DEMO-PLOT-001</span><span>Sentinel‑2 · 12 วัน · ซูม/ลากได้</span><small>ขอบเขตเป็นข้อมูลสังเคราะห์</small></div>
               </article>
               <article className="panel">
                 <div className="panel-head"><div><p className="kicker">TWIN STATE</p><h3>สถานะปัจจุบัน</h3></div><Source>DERIVED</Source></div>
@@ -224,14 +401,31 @@ export default function RiceTwinDashboard() {
 
         {view === "satellite" && (
           <div className="content">
-            <section className="section-title"><div><p className="kicker">RICE REMOTE SENSING</p><h2>Sentinel-2 Imagery</h2><p>เลือกสีที่เกี่ยวกับข้าวจาก dropdown โดยไม่ต้องจำหมายเลข band</p></div><Source>PUBLIC</Source></section>
+            <section className="section-title"><div><p className="kicker">RICE REMOTE SENSING</p><h2>Sentinel-2 Imagery</h2><p>เลือก 12 วันที่มีอยู่เดิมและสีที่เกี่ยวกับข้าว แล้วซูมเทียบกับแผนที่จริงได้</p></div><span className="status-pill">12 DATES · 6 MODES</span></section>
             <section className="satellite-grid">
               <article className="panel satellite-viewer">
-                <div className="select-row"><label>วันที่ภาพ<select><option>19 ก.ค. 2569 · Sentinel-2</option><option>09 ก.ค. 2569 · Sentinel-2</option><option>29 มิ.ย. 2569 · Sentinel-2</option></select></label><label>สีสำหรับวิเคราะห์ข้าว<select value={band} onChange={(event) => setBand(event.target.value)}>{bandModes.map((item) => <option value={item[0]} key={item[0]}>{item[1]} · {item[2]}</option>)}</select></label></div>
-                <div className="satellite-stage"><img src={`satellite/${band}.png`} alt={`Sentinel-2 ${band} สำหรับแปลงข้าวสาธิต`} /></div>
+                <div className="select-row">
+                  <label>วันที่ภาพ
+                    <select value={sceneId} onChange={(event) => setSceneId(event.target.value)}>
+                      {sentinelScenes.map((scene) => <option value={scene.id} key={scene.id}>{scene.date} · เมฆ {scene.cloud}%</option>)}
+                    </select>
+                  </label>
+                  <label>สีสำหรับวิเคราะห์ข้าว
+                    <select value={band} onChange={(event) => setBand(event.target.value)}>{bandModes.map((item) => <option value={item[0]} key={item[0]}>{item[1]} · {item[2]}</option>)}</select>
+                  </label>
+                  <label>พื้นหลังแผนที่
+                    <select value={basemap} onChange={(event) => setBasemap(event.target.value as "satellite" | "streets")}><option value="satellite">ภาพถ่ายดาวเทียม Esri</option><option value="streets">OpenStreetMap</option></select>
+                  </label>
+                </div>
+                <div className="imagery-tools">
+                  <label><input type="checkbox" checked={overlayVisible} onChange={(event) => setOverlayVisible(event.target.checked)} /> แสดงภาพ Sentinel‑2</label>
+                  <label>ความทึบ <input type="range" min="0" max="1" step="0.05" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} /><b>{Math.round(opacity * 100)}%</b></label>
+                  <span>ใช้ปุ่ม +/− หรือ scroll เพื่อซูม · ลากเพื่อเลื่อนแผนที่</span>
+                </div>
+                <InteractiveMap sceneId={sceneId} band={band} basemap={basemap} opacity={opacity} overlayVisible={overlayVisible} className="satellite-map" />
                 <div className="satellite-help"><b>{bandModes.find((item) => item[0] === band)?.[1]}</b><span>{bandModes.find((item) => item[0] === band)?.[2]} — เป็น analytical indicator ไม่ใช่หลักฐานตรงของ AWD compliance</span></div>
               </article>
-              <article className="panel"><div className="panel-head"><h3>Metadata & alignment</h3><Source>PUBLIC</Source></div><div className="state-list"><StateRow label="Acquired" value="19 Jul 2026" /><StateRow label="Sensor" value="Sentinel-2 L2A" /><StateRow label="CRS" value="EPSG:32647" /><StateRow label="Mosaic" value="T47PPR + T47PPS" /><StateRow label="Plot intersection" value="PASS" source="DERIVED" /><StateRow label="Cloud review" value="MANUAL REVIEW" source="MANUAL" /></div><div className="satellite-limit">ภาพถูกจัดแนวด้วย CRS และ geotransform จาก GeoTIFF ไม่ได้เดาพิกัดจาก PNG</div></article>
+              <article className="panel"><div className="panel-head"><h3>Metadata & alignment</h3><Source>PUBLIC</Source></div><div className="state-list"><StateRow label="Acquired" value={sentinelScenes.find((scene) => scene.id === sceneId)?.iso ?? "—"} /><StateRow label="Cloud cover" value={`${sentinelScenes.find((scene) => scene.id === sceneId)?.cloud ?? "—"}%`} /><StateRow label="Sensor" value="Sentinel-2 L2A" /><StateRow label="CRS source" value="EPSG:32647" /><StateRow label="Display CRS" value="WGS84 / Web Mercator" /><StateRow label="Plot intersection" value="PASS" source="DERIVED" /><StateRow label="Cloud review" value="MANUAL REVIEW" source="MANUAL" /></div><div className="satellite-limit">ภาพทั้ง 12 วันใช้พิกัดที่แปลงจาก GeoTIFF จริงและวางทับในกรอบ WGS84 เดียวกัน ไม่ได้เดาตำแหน่งจาก PNG</div></article>
             </section>
           </div>
         )}
