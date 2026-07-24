@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type View = "overview" | "water" | "iot" | "satellite" | "evidence" | "scenarios";
+type View = "overview" | "water" | "iot" | "satellite" | "historical" | "evidence" | "scenarios";
 
 const boundaryWarning =
   "DEMO-PLOT-001 is a synthetic demonstration boundary. It is not a cadastral, surveyed, legal, ownership, or officially verified plot boundary.";
@@ -12,6 +12,7 @@ const nav: { id: View; label: string; icon: string }[] = [
   { id: "water", label: "Water & AWD", icon: "≈" },
   { id: "iot", label: "IoT Operations", icon: "⌁" },
   { id: "satellite", label: "Satellite", icon: "◇" },
+  { id: "historical", label: "Historical Baseline", icon: "◷" },
   { id: "evidence", label: "Verifier Portal", icon: "✓" },
   { id: "scenarios", label: "Demo Scenarios", icon: "▶" },
 ];
@@ -55,6 +56,34 @@ const scenarios = [
 
 type SentinelSensor = "Sentinel-2" | "Sentinel-1";
 type ImageryCoordinates = [[number, number], [number, number], [number, number], [number, number]];
+type HistoricalScene = {
+  image_id: string;
+  date: string;
+  sensor: SentinelSensor;
+  bounds: [number, number, number, number];
+  status: string;
+  quality: number;
+  plot_coverage_percent: number;
+  vegetation_score: number | null;
+  smoothed_vegetation_score: number | null;
+  water_candidate_fraction: number | null;
+  cultivated_area_estimate_rai: number | null;
+  possible_harvested_area_rai: number | null;
+  confidence: string;
+  provenance: string;
+  limitations: string[];
+  derived_field_state?: { state: string; confidence: string; explanation: string };
+};
+type HistoricalBundle = {
+  generated_at: string;
+  public_static_snapshot: boolean;
+  baseline: any;
+  timeline: HistoricalScene[];
+  cycles: any[];
+  zones: any[];
+  evidence: any[];
+  sensors: any[];
+};
 
 const sentinel2Modes = [
   ["rice_true_color", "สีธรรมชาติ", "ตรวจเมฆ คันนา และสภาพผิวทั่วไป"],
@@ -70,6 +99,22 @@ const sentinel1Modes = [
   ["rice_sar_vh", "Radar VH", "การกระเจิงจากลำต้นและทรงพุ่มข้าว"],
   ["rice_sar_diff", "Radar VH−VV", "ความเปลี่ยนแปลงร่วมกันของน้ำและโครงสร้างข้าว"],
 ];
+
+const historicalModes = {
+  "Sentinel-2": [
+    ["true_color", "สีธรรมชาติ"],
+    ["false_color", "สีเท็จพืชพรรณ"],
+    ["ndvi", "NDVI · ความเขียว"],
+    ["evi", "EVI · พืชหนาแน่น"],
+    ["lswi", "LSWI · ความชื้น"],
+    ["ndwi", "NDWI · น้ำ/ความเปียก"],
+  ],
+  "Sentinel-1": [
+    ["vv", "Radar VV"],
+    ["vh", "Radar VH"],
+    ["vh_vv_diff", "Radar VH−VV"],
+  ],
+};
 
 const sentinel2Coordinates: ImageryCoordinates = [
   [100.26460859984597, 14.4799171060011],
@@ -132,6 +177,7 @@ function InteractiveMap({
   opacity,
   overlayVisible,
   coordinates,
+  assetRoot = "sentinel-scenes",
   className = "",
 }: {
   sceneId: string;
@@ -140,6 +186,7 @@ function InteractiveMap({
   opacity: number;
   overlayVisible: boolean;
   coordinates: ImageryCoordinates;
+  assetRoot?: string;
   className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -152,7 +199,7 @@ function InteractiveMap({
     import("maplibre-gl").then((maplibreModule) => {
       if (cancelled || !containerRef.current) return;
       const maplibregl: any = maplibreModule.default ?? maplibreModule;
-      const imageUrl = new URL(`sentinel-scenes/${sceneId}/${band}.png`, window.location.href).href;
+      const imageUrl = new URL(`${assetRoot}/${sceneId}/${band}.png`, window.location.href).href;
       const map = new maplibregl.Map({
         container: containerRef.current,
         center: [100.274733, 14.469728],
@@ -241,7 +288,7 @@ function InteractiveMap({
     if (map.getSource("sentinel-overlay")) map.removeSource("sentinel-overlay");
     map.addSource("sentinel-overlay", {
       type: "image",
-      url: `${new URL(`sentinel-scenes/${sceneId}/${band}.png`, window.location.href).href}?layer=${encodeURIComponent(`${sceneId}-${band}`)}`,
+      url: `${new URL(`${assetRoot}/${sceneId}/${band}.png`, window.location.href).href}?layer=${encodeURIComponent(`${sceneId}-${band}`)}`,
       coordinates,
     });
     map.addLayer({
@@ -251,7 +298,7 @@ function InteractiveMap({
       layout: { visibility: overlayVisible ? "visible" : "none" },
       paint: { "raster-opacity": opacity },
     }, map.getLayer("demo-plot-fill") ? "demo-plot-fill" : undefined);
-  }, [sceneId, band, coordinates]);
+  }, [sceneId, band, coordinates, assetRoot]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -308,10 +355,84 @@ export default function RiceTwinDashboard() {
   const [tick, setTick] = useState(0);
   const [running, setRunning] = useState(false);
   const [assistant, setAssistant] = useState(false);
+  const [historical, setHistorical] = useState<HistoricalBundle | null>(null);
+  const [historySensor, setHistorySensor] = useState<SentinelSensor>("Sentinel-2");
+  const [historyYear, setHistoryYear] = useState("all");
+  const [historyMode, setHistoryMode] = useState("true_color");
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [historyPlaying, setHistoryPlaying] = useState(false);
+  const [historyError, setHistoryError] = useState("");
   const sensorScenes = sentinelScenes.filter((scene) => scene.sensor === sensor);
   const selectedScene = sentinelScenes.find((scene) => scene.id === sceneId) ?? sensorScenes[0];
   const availableModes = sensor === "Sentinel-2" ? sentinel2Modes : sentinel1Modes;
   const selectedMode = availableModes.find((mode) => mode[0] === band) ?? availableModes[0];
+  const historyYears = useMemo(
+    () => [...new Set((historical?.timeline ?? []).map((item) => item.date.slice(0, 4)))],
+    [historical],
+  );
+  const historyScenes = useMemo(
+    () => (historical?.timeline ?? []).filter(
+      (item) => item.sensor === historySensor && (historyYear === "all" || item.date.startsWith(historyYear)),
+    ),
+    [historical, historySensor, historyYear],
+  );
+  const historyScene = historyScenes[Math.min(historyIndex, Math.max(0, historyScenes.length - 1))];
+  const historyCoordinates: ImageryCoordinates | null = historyScene
+    ? [
+        [historyScene.bounds[0], historyScene.bounds[3]],
+        [historyScene.bounds[2], historyScene.bounds[3]],
+        [historyScene.bounds[2], historyScene.bounds[1]],
+        [historyScene.bounds[0], historyScene.bounds[1]],
+      ]
+    : null;
+  const opticalHistory = useMemo(
+    () => (historical?.timeline ?? []).filter((item) => item.sensor === "Sentinel-2" && item.vegetation_score != null),
+    [historical],
+  );
+  const historyChart = useMemo(() => {
+    const width = 1000, height = 230, padding = 30;
+    const point = (item: HistoricalScene, index: number, key: "vegetation_score" | "smoothed_vegetation_score" | "water_candidate_fraction") => {
+      const value = Math.max(0, Math.min(1, Number(item[key] ?? 0)));
+      const x = padding + index * (width - padding * 2) / Math.max(1, opticalHistory.length - 1);
+      const y = height - padding - value * (height - padding * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    };
+    return {
+      raw: opticalHistory.map((item, index) => point(item, index, "vegetation_score")).join(" "),
+      smooth: opticalHistory.map((item, index) => point(item, index, "smoothed_vegetation_score")).join(" "),
+      wet: opticalHistory.map((item, index) => point(item, index, "water_candidate_fraction")).join(" "),
+    };
+  }, [opticalHistory]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(new URL("historical/data.json", window.location.href))
+      .then((response) => {
+        if (!response.ok) throw new Error(`Historical bundle ${response.status}`);
+        return response.json();
+      })
+      .then((payload: HistoricalBundle) => {
+        if (!cancelled) setHistorical(payload);
+      })
+      .catch((error: Error) => {
+        if (!cancelled) setHistoryError(error.message);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    setHistoryIndex(0);
+    setHistoryPlaying(false);
+  }, [historySensor, historyYear]);
+
+  useEffect(() => {
+    if (!historyPlaying || historyScenes.length < 2) return;
+    const timer = setInterval(
+      () => setHistoryIndex((value) => (value + 1) % historyScenes.length),
+      1000,
+    );
+    return () => clearInterval(timer);
+  }, [historyPlaying, historyScenes.length]);
 
   useEffect(() => {
     if (!running || scenario === null) return;
@@ -500,6 +621,87 @@ export default function RiceTwinDashboard() {
               </article>
               <article className="panel"><div className="panel-head"><h3>Metadata & alignment</h3><Source>PUBLIC</Source></div><div className="state-list"><StateRow label="Acquired" value={selectedScene.iso} /><StateRow label="Sensor" value={sensor === "Sentinel-2" ? "Sentinel-2 L2A" : "Sentinel-1 GRD"} /><StateRow label="Display mode" value={selectedMode[1]} /><StateRow label="Cloud cover" value={sensor === "Sentinel-2" ? `${selectedScene.cloud}%` : "ไม่ใช้กับ Radar"} /><StateRow label="CRS source" value="EPSG:32647" /><StateRow label="Display CRS" value="WGS84 / Web Mercator" /><StateRow label="Plot intersection" value="PASS" source="DERIVED" /></div><div className="satellite-limit">ภาพทั้ง 22 scene ใช้พิกัดที่แปลงจาก GeoTIFF จริงและโหลด layer ใหม่ทุกครั้งที่เปลี่ยนวันหรือโหมด เพื่อไม่ให้ภาพเดิมค้างจาก cache</div></article>
             </section>
+          </div>
+        )}
+
+        {view === "historical" && (
+          <div className="content historical-content">
+            <section className="section-title">
+              <div><p className="kicker">ACTUAL ARCHIVE ANALYSIS · STATIC PUBLIC SNAPSHOT</p><h2>Historical Baseline Explorer</h2><p>Sentinel‑2 และ Sentinel‑1 ย้อนหลังประมาณรายสัปดาห์ พร้อม raw metrics, crop-cycle windows, recurring zones และข้อจำกัดที่ตรวจสอบได้</p></div>
+              <span className="status-pill">{historical?.baseline?.algorithm?.version ?? "LOADING"}</span>
+            </section>
+            {historyError && <div className="method-note"><b>โหลดข้อมูลไม่สำเร็จ</b><span>{historyError}</span></div>}
+            {!historical && !historyError && <article className="panel empty">กำลังโหลด static historical bundle…</article>}
+            {historical && (
+              <>
+                <section className="history-kpis">
+                  {[
+                    ["ช่วงภาพ", `${historical.baseline.period[0]} → ${historical.baseline.period[1]}`, "OBSERVED"],
+                    ["ภาพใน inventory", historical.baseline.image_count, "OBSERVED"],
+                    ["ภาพใช้วิเคราะห์", historical.baseline.usable_image_count, "DERIVED"],
+                    ["เฉลี่ยต่อเดือน", historical.baseline.average_images_per_month, "DERIVED"],
+                    ["รอบปลูกที่เป็นไปได้", historical.baseline.probable_crop_cycles, "ESTIMATED"],
+                    ["Baseline completeness", `${historical.baseline.quality_scores.historical_baseline_completeness}%`, "DERIVED"],
+                  ].map((item) => <article className="kpi-card" key={String(item[0])}><div><span>{item[0]}</span><Source>{String(item[2])}</Source></div><strong>{item[1]}</strong><p>HIST-RICE-1.0.0 · public static snapshot</p></article>)}
+                </section>
+
+                <section className="panel history-replay">
+                  <div className="panel-head"><div><p className="kicker">HISTORICAL REPLAY</p><h3>{historyScene ? `${historyScene.date} · ${historyScene.sensor}` : "ไม่มี scene ในตัวกรอง"}</h3></div><div>{historyScene && <><Source>{historyScene.provenance}</Source> <Source>{historyScene.confidence}</Source></>}</div></div>
+                  <div className="history-toolbar">
+                    <label>ดาวเทียม<select value={historySensor} onChange={(event) => { const value = event.target.value as SentinelSensor; setHistorySensor(value); setHistoryMode(value === "Sentinel-2" ? "true_color" : "vv"); }}><option>Sentinel-2</option><option>Sentinel-1</option></select></label>
+                    <label>ปี<select value={historyYear} onChange={(event) => setHistoryYear(event.target.value)}><option value="all">ทุกปี</option>{historyYears.map((year) => <option key={year}>{year}</option>)}</select></label>
+                    <label>สี / มุมมอง<select value={historyMode} onChange={(event) => setHistoryMode(event.target.value)}>{historicalModes[historySensor].map((mode) => <option value={mode[0]} key={mode[0]}>{mode[1]}</option>)}</select></label>
+                    <label>พื้นหลัง<select value={basemap} onChange={(event) => setBasemap(event.target.value as "satellite" | "streets")}><option value="satellite">ภาพถ่าย Esri</option><option value="streets">OpenStreetMap</option></select></label>
+                  </div>
+                  {historyScene && historyCoordinates && (
+                    <div className="history-map-grid">
+                      <InteractiveMap key={`history-${historyScene.image_id}-${historyMode}`} sceneId={historyScene.image_id} band={historyMode} assetRoot="historical-scenes" basemap={basemap} opacity={0.8} overlayVisible coordinates={historyCoordinates} className="history-map" />
+                      <aside className="history-scene-meta">
+                        <StateRow label="Acquired" value={historyScene.date} source="OBSERVED" />
+                        <StateRow label="Sensor" value={historyScene.sensor} source="OBSERVED" />
+                        <StateRow label="Image quality" value={`${historyScene.quality.toFixed(1)} / 100`} source="DERIVED" />
+                        <StateRow label="Plot coverage" value={`${historyScene.plot_coverage_percent.toFixed(1)}%`} source="DERIVED" />
+                        <StateRow label="Vegetation" value={historyScene.vegetation_score?.toFixed(3) ?? "—"} source="DERIVED" />
+                        <StateRow label="Wetness candidate" value={historyScene.water_candidate_fraction == null ? "—" : `${(historyScene.water_candidate_fraction * 100).toFixed(1)}%`} source="DERIVED" />
+                        <StateRow label="Derived state" value={historyScene.derived_field_state?.state ?? "surface candidate"} source="ESTIMATED" />
+                        <p>{historyScene.derived_field_state?.explanation ?? historyScene.limitations[0]}</p>
+                      </aside>
+                    </div>
+                  )}
+                  <div className="history-player">
+                    <button onClick={() => setHistoryIndex((value) => (value - 1 + historyScenes.length) % historyScenes.length)}>‹ ก่อนหน้า</button>
+                    <button className="primary" onClick={() => setHistoryPlaying(!historyPlaying)}>{historyPlaying ? "❚❚ หยุด" : "▶ เล่น"}</button>
+                    <button onClick={() => setHistoryIndex((value) => (value + 1) % historyScenes.length)}>ถัดไป ›</button>
+                    <input aria-label="ลำดับภาพย้อนหลัง" type="range" min="0" max={Math.max(0, historyScenes.length - 1)} value={Math.min(historyIndex, Math.max(0, historyScenes.length - 1))} onChange={(event) => setHistoryIndex(Number(event.target.value))} />
+                    <b>{Math.min(historyIndex + 1, historyScenes.length)} / {historyScenes.length}</b>
+                  </div>
+                </section>
+
+                <section className="panel">
+                  <div className="panel-head"><div><p className="kicker">RAW + ROLLING MEDIAN · NO INTERPOLATION</p><h3>Vegetation & wetness timeline</h3></div><Source>DERIVED</Source></div>
+                  <div className="history-chart"><svg viewBox="0 0 1000 230" role="img" aria-label="กราฟ vegetation และ wetness ย้อนหลัง"><g stroke="#e2e9e5">{[30,72.5,115,157.5,200].map((y) => <line key={y} x1="30" x2="970" y1={y} y2={y} />)}</g><polyline points={historyChart.raw} fill="none" stroke="#75a88f" strokeWidth="1.5" strokeDasharray="3 3" /><polyline points={historyChart.smooth} fill="none" stroke="#176b49" strokeWidth="3" /><polyline points={historyChart.wet} fill="none" stroke="#3b7fa0" strokeWidth="2" /></svg></div>
+                  <div className="history-legend"><i className="raw" /> NDVI raw <i className="smooth" /> rolling median <i className="wet" /> wetness candidate <span>ไม่เติมช่องว่างข้อมูลอัตโนมัติ</span></div>
+                </section>
+
+                <section className="two-col">
+                  <article className="panel"><div className="panel-head"><div><p className="kicker">DATE WINDOWS</p><h3>Probable crop cycles</h3></div><span className="count">{historical.cycles.length}</span></div><div className="history-cycles">{historical.cycles.map((cycle, index) => <div key={cycle.season_id}><b>Cycle {index + 1} · peak {cycle.probable_peak_date}</b><span>ปลูก {cycle.probable_planting_window.join(" – ")}</span><span>เก็บเกี่ยว {cycle.probable_harvest_window.join(" – ")}</span><small>{cycle.confidence} · {cycle.number_of_supporting_images} supporting images · ESTIMATED</small></div>)}</div></article>
+                  <article className="panel table-panel"><div className="panel-head"><div><p className="kicker">YEAR COMPARISON</p><h3>Three-year baseline</h3></div></div><table><thead><tr><th>ปี</th><th>รอบ</th><th>พื้นที่ปลูก (ไร่)</th><th>ภาพ</th><th>Confidence</th></tr></thead><tbody>{historical.baseline.years.map((year: any) => <tr key={year.year}><td>{year.year}</td><td>{year.probable_crop_cycles}</td><td>{year.cultivated_area_range_rai.join("–")}</td><td>{year.image_count}</td><td><Source>{year.confidence}</Source></td></tr>)}</tbody></table></article>
+                </section>
+
+                <section className="panel"><div className="panel-head"><div><p className="kicker">NATIVE 10 M GRID · NO OVERSAMPLING</p><h3>Recurring zones</h3></div><Source>DERIVED</Source></div><div className="history-zone-grid">{historical.zones.map((zone) => <article key={zone.zone_id}><Source>{zone.provenance}</Source><h3>{zone.zone_type}</h3><strong>{zone.number_of_occurrences} / {zone.number_of_usable_images}</strong><p>พบในปี {zone.years_detected.join(", ")} · {zone.recommended_field_check}</p></article>)}</div></section>
+
+                <section className="panel table-panel"><div className="panel-head"><div><p className="kicker">BASELINE EVIDENCE MATRIX</p><h3>สิ่งที่ภาพรองรับและไม่รองรับ</h3></div></div><table><thead><tr><th>Claim</th><th>Support</th><th>Provenance</th><th>Allowed conclusion</th></tr></thead><tbody>{historical.evidence.map((item) => <tr key={item.item_id}><td><b>{item.claim_label}</b></td><td><span className={`history-support ${item.support_level.toLowerCase()}`}>{item.support_level}</span></td><td><Source>{item.provenance}</Source></td><td>{item.conclusion}</td></tr>)}</tbody></table></section>
+
+                <section className="panel"><div className="panel-head"><div><p className="kicker">PROPOSED · NOT FIELD VERIFIED</p><h3>Sensor-location proposals</h3></div><Source>DERIVED</Source></div><div className="history-sensor-grid">{historical.sensors.map((proposal) => <article key={proposal.proposal_id}><div><Source>{proposal.status}</Source> <Source>{proposal.field_verification_status}</Source></div><h3>{proposal.sensor_type}</h3><p>{proposal.rationale}</p><small>{proposal.latitude.toFixed(6)}, {proposal.longitude.toFixed(6)} · {proposal.confidence}</small></article>)}</div></section>
+
+                <section className="two-col">
+                  <article className="panel"><div className="panel-head"><div><p className="kicker">SEPARATE SCORE COMPONENTS</p><h3>Quality & confidence</h3></div></div><div className="history-quality">{Object.entries(historical.baseline.quality_scores).map(([key, value]) => <div key={key}><span>{key.replaceAll("_", " ")}</span><b>{String(value)}%</b><i><em style={{ width: `${value}%` }} /></i></div>)}</div></article>
+                  <article className="panel"><div className="panel-head"><div><p className="kicker">AUDITABLE STATIC EXPORTS</p><h3>ดาวน์โหลดผลพร้อม metadata</h3></div></div><div className="history-exports"><a href="historical/exports/timeline.csv">CSV time series</a><a href="historical/exports/historical-baseline.json">JSON baseline</a><a href="historical/exports/recurring-zones.geojson">GeoJSON zones</a><a href="historical/exports/sensor-proposals.geojson">GeoJSON sensors</a><a href="historical/exports/executive-report.html">Print-ready report</a></div></article>
+                </section>
+
+                <section className="history-limitations"><p className="kicker">REQUIRED SAFEGUARDS</p><h2>ข้อจำกัดที่ต้องอ่านก่อนใช้ผล</h2><ul>{historical.baseline.limitations.map((item: string) => <li key={item}>{item}</li>)}</ul><small>Static snapshot generated {historical.generated_at} · {boundaryWarning}</small></section>
+              </>
+            )}
           </div>
         )}
 

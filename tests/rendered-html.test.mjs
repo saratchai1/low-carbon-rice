@@ -61,3 +61,26 @@ test("ships production metadata and satellite assets", async () => {
   assert.match(dashboardSource, /onInput=/);
   assert.ok(dashboardSource.includes('key={`${sceneId}-${band}`}'));
 });
+
+test("ships the historical baseline bundle and both sensor archives", async () => {
+  const dashboardSource = await readFile(new URL("../app/RiceTwinDashboard.tsx", import.meta.url), "utf8");
+  const historical = JSON.parse(
+    await readFile(new URL("../public/historical/data.json", import.meta.url), "utf8"),
+  );
+  assert.match(dashboardSource, /Historical Baseline Explorer/);
+  assert.match(dashboardSource, /PROPOSED · NOT FIELD VERIFIED/);
+  assert.equal(historical.public_static_snapshot, true);
+  assert.equal(historical.timeline.length, 264);
+  assert.equal(historical.baseline.usable_image_count, 213);
+  assert.ok(historical.cycles.length >= 1);
+  assert.equal(historical.evidence.length, 14);
+  assert.equal(historical.sensors.length, 8);
+  await Promise.all([
+    access(new URL("../public/historical-scenes/hist-s2-2025-01-05/ndvi.png", import.meta.url)),
+    access(new URL("../public/historical-scenes/hist-s2-2025-01-05/true_color.png", import.meta.url)),
+    access(new URL("../public/historical-scenes/hist-s1-2025-01-04/vv.png", import.meta.url)),
+    access(new URL("../public/historical-scenes/hist-s1-2025-01-04/vh_vv_diff.png", import.meta.url)),
+    access(new URL("../public/historical/exports/recurring-zones.geojson", import.meta.url)),
+    access(new URL("../public/historical/exports/executive-report.html", import.meta.url)),
+  ]);
+});
