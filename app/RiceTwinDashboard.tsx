@@ -228,7 +228,7 @@ export default function RiceTwinDashboard() {
             <section className="satellite-grid">
               <article className="panel satellite-viewer">
                 <div className="select-row"><label>วันที่ภาพ<select><option>19 ก.ค. 2569 · Sentinel-2</option><option>09 ก.ค. 2569 · Sentinel-2</option><option>29 มิ.ย. 2569 · Sentinel-2</option></select></label><label>สีสำหรับวิเคราะห์ข้าว<select value={band} onChange={(event) => setBand(event.target.value)}>{bandModes.map((item) => <option value={item[0]} key={item[0]}>{item[1]} · {item[2]}</option>)}</select></label></div>
-                <div className="satellite-stage"><img src={`/satellite/${band}.png`} alt={`Sentinel-2 ${band} สำหรับแปลงข้าวสาธิต`} /></div>
+                <div className="satellite-stage"><img src={`satellite/${band}.png`} alt={`Sentinel-2 ${band} สำหรับแปลงข้าวสาธิต`} /></div>
                 <div className="satellite-help"><b>{bandModes.find((item) => item[0] === band)?.[1]}</b><span>{bandModes.find((item) => item[0] === band)?.[2]} — เป็น analytical indicator ไม่ใช่หลักฐานตรงของ AWD compliance</span></div>
               </article>
               <article className="panel"><div className="panel-head"><h3>Metadata & alignment</h3><Source>PUBLIC</Source></div><div className="state-list"><StateRow label="Acquired" value="19 Jul 2026" /><StateRow label="Sensor" value="Sentinel-2 L2A" /><StateRow label="CRS" value="EPSG:32647" /><StateRow label="Mosaic" value="T47PPR + T47PPS" /><StateRow label="Plot intersection" value="PASS" source="DERIVED" /><StateRow label="Cloud review" value="MANUAL REVIEW" source="MANUAL" /></div><div className="satellite-limit">ภาพถูกจัดแนวด้วย CRS และ geotransform จาก GeoTIFF ไม่ได้เดาพิกัดจาก PNG</div></article>
