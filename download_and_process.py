@@ -3,6 +3,7 @@ import sys
 import glob
 import math
 import json
+import re
 import requests
 import numpy as np
 import pandas as pd
@@ -10,8 +11,9 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import rasterio
 from rasterio.enums import Resampling
+from rasterio.transform import from_origin
 from rasterio.windows import from_bounds
-from rasterio.warp import transform_bounds
+from rasterio.warp import reproject, transform_bounds
 from datetime import datetime
 import planetary_computer as pc
 import warnings
@@ -69,6 +71,46 @@ def fetch_raster_window(asset_url, bbox_4326, target_shape=None):
     except Exception as e:
         print(f"    Error reading COG window: {e}")
         return None, None, None
+
+
+def fetch_mosaic_band(asset_urls, bbox_4326, resolution=10.0, target_crs="EPSG:32647"):
+    """Merge adjacent Sentinel-2 tiles onto one fixed grid covering the full ROI."""
+    minx, miny, maxx, maxy = transform_bounds(
+        "EPSG:4326", target_crs, *bbox_4326, densify_pts=21
+    )
+    minx = math.floor(minx / resolution) * resolution
+    miny = math.floor(miny / resolution) * resolution
+    maxx = math.ceil(maxx / resolution) * resolution
+    maxy = math.ceil(maxy / resolution) * resolution
+    width = int(round((maxx - minx) / resolution))
+    height = int(round((maxy - miny) / resolution))
+    dst_transform = from_origin(minx, maxy, resolution, resolution)
+    mosaic = np.full((height, width), np.nan, dtype=np.float32)
+
+    for asset_url in asset_urls:
+        try:
+            with rasterio.open(asset_url) as src:
+                tile = np.full((height, width), np.nan, dtype=np.float32)
+                reproject(
+                    source=rasterio.band(src, 1),
+                    destination=tile,
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    src_nodata=src.nodata,
+                    dst_transform=dst_transform,
+                    dst_crs=target_crs,
+                    dst_nodata=np.nan,
+                    resampling=Resampling.bilinear,
+                )
+                valid = np.isfinite(tile)
+                fill = np.isnan(mosaic) & valid
+                mosaic[fill] = tile[fill]
+        except Exception as e:
+            print(f"    Error reading mosaic tile: {e}")
+
+    if not np.isfinite(mosaic).any():
+        return None, None, None
+    return mosaic, dst_transform, target_crs
 
 # Helper to save single band GeoTIFF raster
 def save_geotiff(filename, data, transform_matrix, crs):
@@ -130,55 +172,57 @@ r = requests.post(STAC_URL, json=s2_payload, headers=headers)
 s2_items = r.json().get("features", []) if r.status_code == 200 else []
 print(f"Total Sentinel-2 scenes found: {len(s2_items)}")
 
-# Select best scene per acquisition date (lowest cloud cover)
+# Select the lowest-cloud scene for every MGRS tile on each acquisition date.
+# The target plot crosses the T47PPR/T47PPS boundary, so selecting only one
+# scene per date produces a half-height raster that appears shifted on the map.
 s2_by_date = {}
 for item in s2_items:
     dt_str = item["properties"]["datetime"][:10]
     cloud = item["properties"].get("eo:cloud_cover", 100.0)
-    if dt_str not in s2_by_date or cloud < s2_by_date[dt_str]["cloud"]:
-        s2_by_date[dt_str] = {"item": item, "cloud": cloud}
+    tile_match = re.search(r"_T([0-9]{2}[A-Z]{3})_", item["id"])
+    tile_id = tile_match.group(1) if tile_match else item["id"]
+    date_tiles = s2_by_date.setdefault(dt_str, {})
+    if tile_id not in date_tiles or cloud < date_tiles[tile_id]["cloud"]:
+        date_tiles[tile_id] = {"item": item, "cloud": cloud}
 
 print(f"Unique acquisition dates for Sentinel-2: {len(s2_by_date)} days")
 
 inventory_records = []
 
-for dt_str, info in sorted(s2_by_date.items()):
-    raw_item = info["item"]
-    cloud_cover = info["cloud"]
-    scene_id = raw_item["id"]
+for dt_str, tile_records in sorted(s2_by_date.items()):
+    raw_items = [record["item"] for record in tile_records.values()]
+    cloud_values = [record["cloud"] for record in tile_records.values()]
+    cloud_cover = float(np.mean(cloud_values))
+    scene_ids = [item["id"] for item in raw_items]
+    scene_id = " + ".join(scene_ids)
     
-    print(f"\nProcessing Sentinel-2 | Date: {dt_str} | Cloud: {cloud_cover:.1f}% | Tile ID: {scene_id[:35]}...")
+    print(
+        f"\nProcessing Sentinel-2 mosaic | Date: {dt_str} | "
+        f"Tiles: {', '.join(sorted(tile_records))} | Mean cloud: {cloud_cover:.1f}%..."
+    )
     
-    # Sign item using Planetary Computer SDK
-    item = pc.sign(raw_item)
-    assets = item["assets"]
+    # Sign every adjacent tile before reading their COG assets.
+    signed_items = [pc.sign(raw_item) for raw_item in raw_items]
     
-    date_dir = os.path.join(S2_DIR, f"{dt_str}_{scene_id[:25]}")
+    date_dir = os.path.join(S2_DIR, f"{dt_str}_S2_MOSAIC")
     os.makedirs(date_dir, exist_ok=True)
     
     bands_data = {}
     trans, crs = None, None
-    target_shape = None
-    
-    # First load 10m bands (B02, B03, B04, B08) to establish reference spatial grid
-    for b_name in ["B02", "B03", "B04", "B08"]:
-        if b_name in assets:
-            url = assets[b_name]["href"]
-            arr, tr, c = fetch_raster_window(url, BBOX)
-            if arr is not None:
-                bands_data[b_name] = arr.astype(np.float32) / 10000.0
-                if target_shape is None:
-                    target_shape = arr.shape
-                    trans = tr
-                    crs = c
-                    
-    # Now load 20m SWIR bands (B11, B12) resampled to 10m grid
-    for b_name in ["B11", "B12"]:
-        if b_name in assets and target_shape is not None:
-            url = assets[b_name]["href"]
-            arr, tr, c = fetch_raster_window(url, BBOX, target_shape=target_shape)
-            if arr is not None:
-                bands_data[b_name] = arr.astype(np.float32) / 10000.0
+
+    # Reproject all 10 m and 20 m assets onto the same fixed 10 m grid.
+    for b_name in ["B02", "B03", "B04", "B08", "B11", "B12"]:
+        urls = [
+            item["assets"][b_name]["href"]
+            for item in signed_items
+            if b_name in item["assets"]
+        ]
+        arr, tr, c = fetch_mosaic_band(urls, BBOX)
+        if arr is not None:
+            bands_data[b_name] = arr.astype(np.float32) / 10000.0
+            if trans is None:
+                trans = tr
+                crs = c
 
     if "B04" in bands_data and "B08" in bands_data and "B11" in bands_data:
         red = bands_data["B04"]
@@ -274,10 +318,12 @@ for dt_str, info in sorted(s2_by_date.items()):
         
         inventory_records.append({
             "date": dt_str,
-            "datetime": raw_item["properties"]["datetime"],
+            "datetime": raw_items[0]["properties"]["datetime"],
             "satellite": "Sentinel-2",
             "type": "Optical Multispectral",
             "scene_id": scene_id,
+            "scene_ids": scene_ids,
+            "mgrs_tiles": sorted(tile_records),
             "cloud_cover_%": cloud_cover,
             "mean_ndvi": mean_ndvi,
             "mean_lswi": mean_lswi,

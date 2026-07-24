@@ -4,15 +4,23 @@
     "datetime":"2026-05-25T03:35:29.024000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2B_MSIL2A_20260525T033529_R061_T47PPR_20260525T072503",
-    "cloud_cover_%":62.686944,
-    "mean_ndvi":0.1542761922,
-    "mean_lswi":0.0255718753,
-    "mean_ndwi":-0.1597528011,
-    "mean_evi":0.184610337,
+    "scene_id":"S2B_MSIL2A_20260525T033529_R061_T47PPS_20260525T072503 + S2B_MSIL2A_20260525T033529_R061_T47PPR_20260525T072503",
+    "scene_ids":[
+      "S2B_MSIL2A_20260525T033529_R061_T47PPS_20260525T072503",
+      "S2B_MSIL2A_20260525T033529_R061_T47PPR_20260525T072503"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":77.8445245,
+    "mean_ndvi":0.125702709,
+    "mean_lswi":0.0171923991,
+    "mean_ndwi":-0.1301323622,
+    "mean_evi":0.1508075297,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-05-25_S2B_MSIL2A_20260525T03352"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-05-25_S2_MOSAIC"
   },
   {
     "date":"2026-05-27",
@@ -20,6 +28,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1A_IW_GRDH_1SDV_20260527T230909_20260527T230934_064709_0826FE_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,
@@ -35,6 +45,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1D_IW_GRDH_1SDV_20260603T230822_20260603T230847_003078_00552E_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,
@@ -50,6 +62,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1A_IW_GRDH_1SDV_20260604T112908_20260604T112933_064819_082AD4_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,
@@ -64,45 +78,69 @@
     "datetime":"2026-06-09T03:35:31.025000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2C_MSIL2A_20260609T033531_R061_T47PPS_20260609T084117",
-    "cloud_cover_%":95.396394,
-    "mean_ndvi":0.2038986981,
-    "mean_lswi":0.0983936116,
-    "mean_ndwi":-0.1787318587,
-    "mean_evi":0.2883718908,
+    "scene_id":"S2C_MSIL2A_20260609T033531_R061_T47PPS_20260609T084117 + S2C_MSIL2A_20260609T033531_R061_T47PPR_20260609T084117",
+    "scene_ids":[
+      "S2C_MSIL2A_20260609T033531_R061_T47PPS_20260609T084117",
+      "S2C_MSIL2A_20260609T033531_R061_T47PPR_20260609T084117"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":97.6978125,
+    "mean_ndvi":0.2038929462,
+    "mean_lswi":0.0983949974,
+    "mean_ndwi":-0.1787971705,
+    "mean_evi":0.2883372009,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-09_S2C_MSIL2A_20260609T03353"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-09_S2_MOSAIC"
   },
   {
     "date":"2026-06-11",
     "datetime":"2026-06-11T03:42:01.024000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2A_MSIL2A_20260611T034201_R061_T47PPS_20260611T082920",
-    "cloud_cover_%":52.117836,
-    "mean_ndvi":0.2072868347,
-    "mean_lswi":0.0847774968,
-    "mean_ndwi":-0.1637746096,
-    "mean_evi":0.380690217,
+    "scene_id":"S2A_MSIL2A_20260611T034201_R061_T47PPS_20260611T082920 + S2A_MSIL2A_20260611T034201_R061_T47PPR_20260611T082920",
+    "scene_ids":[
+      "S2A_MSIL2A_20260611T034201_R061_T47PPS_20260611T082920",
+      "S2A_MSIL2A_20260611T034201_R061_T47PPR_20260611T082920"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":65.3838455,
+    "mean_ndvi":0.2072363794,
+    "mean_lswi":0.084707886,
+    "mean_ndwi":-0.1637698263,
+    "mean_evi":0.3805943429,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-11_S2A_MSIL2A_20260611T03420"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-11_S2_MOSAIC"
   },
   {
     "date":"2026-06-14",
     "datetime":"2026-06-14T03:35:29.024000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2B_MSIL2A_20260614T033529_R061_T47PPS_20260614T072112",
-    "cloud_cover_%":15.061611,
-    "mean_ndvi":0.2865058184,
-    "mean_lswi":0.0897127017,
-    "mean_ndwi":-0.2493378073,
-    "mean_evi":0.321749717,
+    "scene_id":"S2B_MSIL2A_20260614T033529_R061_T47PPS_20260614T072112 + S2B_MSIL2A_20260614T033529_R061_T47PPR_20260614T072112",
+    "scene_ids":[
+      "S2B_MSIL2A_20260614T033529_R061_T47PPS_20260614T072112",
+      "S2B_MSIL2A_20260614T033529_R061_T47PPR_20260614T072112"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":16.734658,
+    "mean_ndvi":0.2863979936,
+    "mean_lswi":0.0895628631,
+    "mean_ndwi":-0.2493944913,
+    "mean_evi":0.3214730918,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-14_S2B_MSIL2A_20260614T03352"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-14_S2_MOSAIC"
   },
   {
     "date":"2026-06-16",
@@ -110,6 +148,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1A_IW_GRDH_1SDV_20260616T112907_20260616T112932_064994_0830E7_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,
@@ -124,15 +164,23 @@
     "datetime":"2026-06-19T03:35:31.025000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2C_MSIL2A_20260619T033531_R061_T47PPR_20260619T084711",
-    "cloud_cover_%":99.984688,
-    "mean_ndvi":0.2207712233,
-    "mean_lswi":0.2064528763,
-    "mean_ndwi":-0.1882492304,
-    "mean_evi":0.3546873033,
+    "scene_id":"S2C_MSIL2A_20260619T033531_R061_T47PPS_20260619T084711 + S2C_MSIL2A_20260619T033531_R061_T47PPR_20260619T084711",
+    "scene_ids":[
+      "S2C_MSIL2A_20260619T033531_R061_T47PPS_20260619T084711",
+      "S2C_MSIL2A_20260619T033531_R061_T47PPR_20260619T084711"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":99.992323,
+    "mean_ndvi":0.2242500335,
+    "mean_lswi":0.2097903639,
+    "mean_ndwi":-0.1922401339,
+    "mean_evi":0.3508757353,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-19_S2C_MSIL2A_20260619T03353"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-19_S2_MOSAIC"
   },
   {
     "date":"2026-06-20",
@@ -140,6 +188,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1A_IW_GRDH_1SDV_20260620T230908_20260620T230933_065059_083346_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,
@@ -154,15 +204,23 @@
     "datetime":"2026-06-24T03:35:29.024000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2B_MSIL2A_20260624T033529_R061_T47PPR_20260624T073314",
-    "cloud_cover_%":4.876049,
-    "mean_ndvi":0.3609488308,
-    "mean_lswi":0.1152707487,
-    "mean_ndwi":-0.3065793812,
-    "mean_evi":0.3972970247,
+    "scene_id":"S2B_MSIL2A_20260624T033529_R061_T47PPS_20260624T073314 + S2B_MSIL2A_20260624T033529_R061_T47PPR_20260624T073314",
+    "scene_ids":[
+      "S2B_MSIL2A_20260624T033529_R061_T47PPS_20260624T073314",
+      "S2B_MSIL2A_20260624T033529_R061_T47PPR_20260624T073314"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":4.90784,
+    "mean_ndvi":0.3628655076,
+    "mean_lswi":0.1240862608,
+    "mean_ndwi":-0.3081787825,
+    "mean_evi":0.3904743493,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-24_S2B_MSIL2A_20260624T03352"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-24_S2_MOSAIC"
   },
   {
     "date":"2026-06-27",
@@ -170,6 +228,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1D_IW_GRDH_1SDV_20260627T230827_20260627T230852_003428_0060B5_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,
@@ -185,6 +245,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1A_IW_GRDH_1SDV_20260628T112906_20260628T112931_065169_083710_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,
@@ -199,60 +261,92 @@
     "datetime":"2026-06-29T03:35:31.025000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2C_MSIL2A_20260629T033531_R061_T47PPR_20260629T083655",
-    "cloud_cover_%":99.91954,
-    "mean_ndvi":0.197264865,
-    "mean_lswi":0.250300467,
-    "mean_ndwi":-0.1666347533,
-    "mean_evi":0.4397368431,
+    "scene_id":"S2C_MSIL2A_20260629T033531_R061_T47PPS_20260629T083655 + S2C_MSIL2A_20260629T033531_R061_T47PPR_20260629T083655",
+    "scene_ids":[
+      "S2C_MSIL2A_20260629T033531_R061_T47PPS_20260629T083655",
+      "S2C_MSIL2A_20260629T033531_R061_T47PPR_20260629T083655"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":99.9597315,
+    "mean_ndvi":0.2054152191,
+    "mean_lswi":0.2623428106,
+    "mean_ndwi":-0.1740160137,
+    "mean_evi":0.453563869,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-29_S2C_MSIL2A_20260629T03353"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-06-29_S2_MOSAIC"
   },
   {
     "date":"2026-07-01",
     "datetime":"2026-07-01T03:42:01.024000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2A_MSIL2A_20260701T034201_R061_T47PPR_20260701T082511",
-    "cloud_cover_%":92.599624,
-    "mean_ndvi":0.18646954,
-    "mean_lswi":0.2089172304,
-    "mean_ndwi":-0.1440262496,
-    "mean_evi":0.6287314892,
+    "scene_id":"S2A_MSIL2A_20260701T034201_R061_T47PPS_20260701T082511 + S2A_MSIL2A_20260701T034201_R061_T47PPR_20260701T082511",
+    "scene_ids":[
+      "S2A_MSIL2A_20260701T034201_R061_T47PPS_20260701T082511",
+      "S2A_MSIL2A_20260701T034201_R061_T47PPR_20260701T082511"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":95.079389,
+    "mean_ndvi":0.1839058548,
+    "mean_lswi":0.1967807412,
+    "mean_ndwi":-0.1550246328,
+    "mean_evi":0.4853950441,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-01_S2A_MSIL2A_20260701T03420"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-01_S2_MOSAIC"
   },
   {
     "date":"2026-07-04",
     "datetime":"2026-07-04T03:35:29.024000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2B_MSIL2A_20260704T033529_R061_T47PPS_20260704T072543",
-    "cloud_cover_%":96.688491,
-    "mean_ndvi":0.0877464861,
-    "mean_lswi":0.2716490328,
-    "mean_ndwi":-0.0689991787,
-    "mean_evi":0.58677876,
+    "scene_id":"S2B_MSIL2A_20260704T033529_R061_T47PPS_20260704T072543 + S2B_MSIL2A_20260704T033529_R061_T47PPR_20260704T072543",
+    "scene_ids":[
+      "S2B_MSIL2A_20260704T033529_R061_T47PPS_20260704T072543",
+      "S2B_MSIL2A_20260704T033529_R061_T47PPR_20260704T072543"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":98.302242,
+    "mean_ndvi":0.0878062621,
+    "mean_lswi":0.2715515196,
+    "mean_ndwi":-0.0690566599,
+    "mean_evi":0.5865947604,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-04_S2B_MSIL2A_20260704T03352"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-04_S2_MOSAIC"
   },
   {
     "date":"2026-07-09",
     "datetime":"2026-07-09T03:35:31.025000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2C_MSIL2A_20260709T033531_R061_T47PPS_20260709T083814",
-    "cloud_cover_%":67.262137,
-    "mean_ndvi":0.3980210721,
-    "mean_lswi":0.1716912538,
-    "mean_ndwi":-0.3465060294,
-    "mean_evi":0.5492067933,
+    "scene_id":"S2C_MSIL2A_20260709T033531_R061_T47PPS_20260709T083814 + S2C_MSIL2A_20260709T033531_R061_T47PPR_20260709T083814",
+    "scene_ids":[
+      "S2C_MSIL2A_20260709T033531_R061_T47PPS_20260709T083814",
+      "S2C_MSIL2A_20260709T033531_R061_T47PPR_20260709T083814"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":71.1577655,
+    "mean_ndvi":0.3977175355,
+    "mean_lswi":0.1714606136,
+    "mean_ndwi":-0.3462905586,
+    "mean_evi":0.5488652587,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-09_S2C_MSIL2A_20260709T03353"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-09_S2_MOSAIC"
   },
   {
     "date":"2026-07-09",
@@ -260,6 +354,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1D_IW_GRDH_1SDV_20260709T230828_20260709T230853_003603_006698_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,
@@ -274,15 +370,23 @@
     "datetime":"2026-07-14T03:35:39.024000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2B_MSIL2A_20260714T033539_R061_T47PPR_20260714T072729",
-    "cloud_cover_%":59.912765,
-    "mean_ndvi":0.1960466355,
-    "mean_lswi":0.1341265142,
-    "mean_ndwi":-0.1505846828,
-    "mean_evi":0.9478011727,
+    "scene_id":"S2B_MSIL2A_20260714T033539_R061_T47PPS_20260714T072729 + S2B_MSIL2A_20260714T033539_R061_T47PPR_20260714T072729",
+    "scene_ids":[
+      "S2B_MSIL2A_20260714T033539_R061_T47PPS_20260714T072729",
+      "S2B_MSIL2A_20260714T033539_R061_T47PPR_20260714T072729"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":66.7319775,
+    "mean_ndvi":0.2238844484,
+    "mean_lswi":0.1271746606,
+    "mean_ndwi":-0.1785986722,
+    "mean_evi":0.8097786307,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-14_S2B_MSIL2A_20260714T03353"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-14_S2_MOSAIC"
   },
   {
     "date":"2026-07-17",
@@ -290,6 +394,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1D_IW_GRDH_1SDV_20260717T112827_20260717T112852_003713_006A59_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,
@@ -304,15 +410,23 @@
     "datetime":"2026-07-19T03:35:41.025000Z",
     "satellite":"Sentinel-2",
     "type":"Optical Multispectral",
-    "scene_id":"S2C_MSIL2A_20260719T033541_R061_T47PPR_20260719T083917",
-    "cloud_cover_%":4.297355,
-    "mean_ndvi":0.4568725228,
-    "mean_lswi":0.1966198534,
-    "mean_ndwi":-0.4073570669,
-    "mean_evi":0.5047691464,
+    "scene_id":"S2C_MSIL2A_20260719T033541_R061_T47PPS_20260719T083917 + S2C_MSIL2A_20260719T033541_R061_T47PPR_20260719T083917",
+    "scene_ids":[
+      "S2C_MSIL2A_20260719T033541_R061_T47PPS_20260719T083917",
+      "S2C_MSIL2A_20260719T033541_R061_T47PPR_20260719T083917"
+    ],
+    "mgrs_tiles":[
+      "47PPR",
+      "47PPS"
+    ],
+    "cloud_cover_%":7.8798235,
+    "mean_ndvi":0.4566763043,
+    "mean_lswi":0.2015585154,
+    "mean_ndwi":-0.411898911,
+    "mean_evi":0.4954461157,
     "mean_vv_dB":null,
     "mean_vh_dB":null,
-    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-19_S2C_MSIL2A_20260719T03354"
+    "output_dir":"\/Users\/kong\/low-carbon-rice\/output\/sentinel2\/2026-07-19_S2_MOSAIC"
   },
   {
     "date":"2026-07-21",
@@ -320,6 +434,8 @@
     "satellite":"Sentinel-1",
     "type":"Radar SAR (C-band)",
     "scene_id":"S1D_IW_GRDH_1SDV_20260721T230838_20260721T230903_003778_006C8D_rtc",
+    "scene_ids":null,
+    "mgrs_tiles":null,
     "cloud_cover_%":0.0,
     "mean_ndvi":null,
     "mean_lswi":null,

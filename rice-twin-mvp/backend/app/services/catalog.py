@@ -72,6 +72,8 @@ def import_satellite_catalog(db: Session, plot: Plot) -> int:
             source_metadata={
                 "satellite": record["satellite"],
                 "scene_id": record["scene_id"],
+                "scene_ids": record.get("scene_ids", [record["scene_id"]]),
+                "mgrs_tiles": record.get("mgrs_tiles", []),
                 "cloud_cover_percent": record["cloud_cover_%"],
                 "metrics": {
                     key: record.get(key) for key in
