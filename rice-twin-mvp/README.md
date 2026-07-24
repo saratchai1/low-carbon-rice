@@ -1,4 +1,47 @@
-# Rice Twin MVP
+# Ultimate Low-Carbon Rice Digital Twin
+
+แพลตฟอร์มสาธิตระดับ executive ที่เชื่อม Digital Twin, IoT, AWD decision support,
+public-data adapters, Sentinel imagery, field evidence และ Carbon MRV readiness
+บน FastAPI + PostgreSQL/PostGIS + MapLibre
+
+> **DEMO-PLOT-001 is a synthetic demonstration boundary. It is not a cadastral,
+> surveyed, legal, ownership, or officially verified plot boundary.**
+
+หน้าใช้งานหลักอยู่ที่ `http://localhost:8000` และโหมดนำเสนออยู่ที่
+`http://localhost:8000/presentation` ส่วน UI รุ่นก่อนยังเปิดได้ที่ `/legacy`
+
+ระบบสร้างข้อมูลสาธิตแบบ deterministic จำนวน 1 แปลงหลัก + 5 แปลงใกล้เคียง,
+อุปกรณ์ 12 ตัว, observations 30 วัน, public snapshots, evidence, alerts และ
+สถานการณ์ end-to-end 10 แบบ ค่าทุกกลุ่มติดป้าย `LIVE`, `SIMULATED`, `PUBLIC`,
+`MANUAL`, `DERIVED` หรือ `REFERENCE`
+
+## คู่มือเวอร์ชัน Ultimate
+
+- [Executive Demo Guide](docs/EXECUTIVE_DEMO_GUIDE.md)
+- [IoT Integration Guide](docs/IOT_INTEGRATION_GUIDE.md)
+- [Public Data Adapter Guide](docs/PUBLIC_DATA_ADAPTER_GUIDE.md)
+- [Satellite Imagery Guide](docs/SATELLITE_IMAGERY_GUIDE.md)
+- [Carbon MRV Limitations](docs/CARBON_MRV_LIMITATIONS.md)
+- [Architecture](docs/ARCHITECTURE.md)
+
+## เริ่มระบบ
+
+```bash
+docker compose up --build
+```
+
+ตรวจสุขภาพและรันชุดทดสอบ:
+
+```bash
+curl http://localhost:8000/api/health
+docker compose exec api pytest -q
+```
+
+API รุ่น Ultimate ใช้ prefix `/api/v1` และ Swagger อยู่ที่ `/docs`
+
+---
+
+# Rice Twin MVP (บันทึกความสามารถรุ่นเดิม)
 
 ต้นแบบ Digital Twin สำหรับแปลงข้าวคาร์บอนต่ำ โดยเน้นสถานะน้ำแบบ AWD, บันทึกกิจกรรม, evidence timeline และการซ้อนภาพ GeoTIFF บนแผนที่
 

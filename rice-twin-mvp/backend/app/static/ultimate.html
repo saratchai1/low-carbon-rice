@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123b2d">
+  <title>Rice Twin — Executive Command Center</title>
+  <link rel="stylesheet" href="/static/vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="/static/ultimate.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#command">
+        <span class="brand-mark">RT</span>
+        <span><strong>Rice Twin</strong><small>Digital Operations</small></span>
+      </a>
+      <nav id="mainNav" aria-label="เมนูหลัก">
+        <a class="active" href="#command" data-view="command"><span>◫</span><b>Command Center</b></a>
+        <a href="#plot" data-view="plot"><span>⌖</span><b>Plot Digital Twin</b></a>
+        <a href="#water" data-view="water"><span>≈</span><b>Water & AWD</b></a>
+        <a href="#iot" data-view="iot"><span>⌁</span><b>IoT Operations</b></a>
+        <a href="#public" data-view="public"><span>◎</span><b>Public Data</b></a>
+        <a href="#satellite" data-view="satellite"><span>◇</span><b>Satellite</b></a>
+        <a href="#field" data-view="field"><span>✎</span><b>Field Operations</b></a>
+        <a href="#mrv" data-view="mrv"><span>▤</span><b>Carbon MRV</b></a>
+        <a href="#verifier" data-view="verifier"><span>✓</span><b>Verifier Portal</b></a>
+        <a href="#scenarios" data-view="scenarios"><span>▶</span><b>Demo Scenarios</b></a>
+      </nav>
+      <div class="sidebar-foot">
+        <span class="status-line"><i id="systemDot"></i><span id="systemStatus">กำลังเชื่อมต่อ</span></span>
+        <a href="/legacy">เปิดหน้ารุ่นเดิม</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button id="menuButton" class="icon-button" aria-label="เปิดเมนู">☰</button>
+        <div>
+          <p class="eyebrow">LOW-CARBON RICE DIGITAL TWIN</p>
+          <h1 id="pageTitle">Executive Command Center</h1>
+        </div>
+        <div class="top-actions">
+          <label>มุมมอง
+            <select id="roleSelect" title="ตัวสลับบทบาทสำหรับการสาธิต"></select>
+          </label>
+          <button id="languageButton" class="ghost-button">TH / EN</button>
+          <a class="primary-button" href="/presentation" target="_blank">Presentation mode</a>
+        </div>
+      </header>
+
+      <div class="demo-warning">
+        <strong>DEMO BOUNDARY</strong>
+        <span>DEMO-PLOT-001 is a synthetic demonstration boundary. It is not a cadastral, surveyed, legal, ownership, or officially verified plot boundary.</span>
+      </div>
+
+      <section id="view-command" class="view active">
+        <div class="hero-row">
+          <div>
+            <p class="eyebrow green">OPERATIONAL OVERVIEW · 24 JUL 2026</p>
+            <h2>ภาพรวมโครงการและสถานะแปลงนา</h2>
+            <p>ข้อมูลสาธิตแบบตรวจสอบที่มาได้ เชื่อมโยงแปลง เซนเซอร์ ดาวเทียม งานภาคสนาม และความพร้อม MRV</p>
+          </div>
+          <div class="hero-actions">
+            <button id="refreshButton" class="ghost-button">↻ อัปเดตข้อมูล</button>
+            <a class="ghost-button" href="/api/v1/reports/executive-summary.html" target="_blank">ออกรายงาน</a>
+          </div>
+        </div>
+        <div id="kpiGrid" class="kpi-grid loading-grid"></div>
+        <div class="dashboard-grid">
+          <article class="panel map-panel">
+            <div class="panel-head">
+              <div><p class="eyebrow green">SPATIAL OPERATIONS</p><h3>แผนที่การปฏิบัติงาน</h3></div>
+              <span class="provenance reference">REFERENCE</span>
+            </div>
+            <div id="executiveMap"></div>
+            <div class="map-key"><span><i class="map-swatch main-plot"></i>แปลงหลัก</span><span><i class="map-swatch neighbor"></i>แปลงใกล้เคียง</span></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow green">TWIN STATE</p><h3>สถานะปัจจุบัน</h3></div><span class="provenance derived">DERIVED</span></div>
+            <div id="twinSummary" class="state-stack skeleton-lines"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow green">WATER SIGNAL</p><h3>แนวโน้ม 30 วัน</h3></div><span class="provenance simulated">SIMULATED</span></div>
+            <svg id="waterChart" class="line-chart" viewBox="0 0 680 240" role="img" aria-label="กราฟระดับน้ำ"></svg>
+            <div class="chart-legend"><span><i></i>ระดับน้ำ (cm)</span><small>เส้นประ = จุดพิจารณาให้น้ำ</small></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><p class="eyebrow green">ACTION CENTER</p><h3>Alerts และสิ่งที่ต้องทำ</h3></div><a href="#iot">ดูทั้งหมด →</a></div>
+            <div id="alertList" class="feed skeleton-lines"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="view-plot" class="view">
+        <div class="section-intro"><div><p class="eyebrow green">PLOT DIGITAL TWIN</p><h2>DEMO-PLOT-001</h2><p>สถานะที่รวมจากข้อมูลหลายแหล่ง โดยคงป้าย provenance ในระดับตัวแปร</p></div><span class="score-badge" id="plotConfidence">—</span></div>
+        <div id="plotTwinCards" class="detail-grid"></div>
+        <article class="panel"><div class="panel-head"><h3>คำอธิบายการตัดสินใจล่าสุด</h3><span class="provenance derived">DERIVED</span></div><div id="ruleExplanation"></div></article>
+      </section>
+
+      <section id="view-water" class="view">
+        <div class="section-intro"><div><p class="eyebrow green">TRANSPARENT AWD</p><h2>Water & AWD Decision Support</h2><p>กฎสาธิตที่อ่านเหตุผล อินพุต และข้อจำกัดได้ทุกครั้ง</p></div><button id="evaluateButton" class="primary-button">ประเมินกฎตอนนี้</button></div>
+        <div class="dashboard-grid two">
+          <article class="panel"><div class="panel-head"><h3>คำแนะนำปัจจุบัน</h3><span class="provenance derived">DERIVED</span></div><div id="awdDecision" class="decision-box"></div></article>
+          <article class="panel"><div class="panel-head"><h3>อินพุตที่ใช้</h3><span class="provenance mixed">MIXED</span></div><div id="awdInputs" class="state-stack"></div></article>
+        </div>
+      </section>
+
+      <section id="view-iot" class="view">
+        <div class="section-intro"><div><p class="eyebrow green">DEVICE REGISTRY</p><h2>IoT Operations</h2><p>ทะเบียนอุปกรณ์ การเชื่อมต่อ แบตเตอรี่ สัญญาณ และกำหนดสอบเทียบ</p></div><span id="iotCount" class="score-badge">—</span></div>
+        <div id="deviceGrid" class="device-grid"></div>
+      </section>
+
+      <section id="view-public" class="view">
+        <div class="section-intro"><div><p class="eyebrow green">CONTEXT ADAPTERS</p><h2>Public Data Integration</h2><p>บริบทจากสภาพอากาศ น้ำ และดิน แยกจากข้อมูลจุดตรวจในแปลงอย่างชัดเจน</p></div></div>
+        <div id="adapterGrid" class="detail-grid"></div>
+        <article class="panel"><div class="panel-head"><h3>Public snapshots</h3><span class="provenance public">PUBLIC</span></div><div class="table-wrap"><table><thead><tr><th>ประเภท</th><th>ผู้ให้บริการ</th><th>เวลา</th><th>ระยะห่าง</th><th>ข้อจำกัด</th></tr></thead><tbody id="publicTable"></tbody></table></div></article>
+      </section>
+
+      <section id="view-satellite" class="view">
+        <div class="section-intro"><div><p class="eyebrow green">RICE REMOTE SENSING</p><h2>Sentinel Imagery</h2><p>เลือกวันที่และสีที่เกี่ยวกับข้าวได้จาก dropdown พร้อมตรวจสอบขอบเขตตัดแปลง</p></div></div>
+        <div class="satellite-layout">
+          <article class="panel satellite-viewer">
+            <div class="filter-row">
+              <label>วันที่ภาพ<select id="sceneSelect"></select></label>
+              <label>สีสำหรับวิเคราะห์ข้าว<select id="bandSelect">
+                <option value="rice_true_color">สีธรรมชาติ · ตรวจภาพทั่วไป</option>
+                <option value="rice_false_color">สีเท็จพืชพรรณ · ดูความสมบูรณ์</option>
+                <option value="rice_ndvi">NDVI · ความเขียวของข้าว</option>
+                <option value="rice_lswi">LSWI · ความชื้นพืชและผิวดิน</option>
+                <option value="rice_ndwi">NDWI · น้ำขังและความเปียก</option>
+                <option value="rice_evi">EVI · พืชหนาแน่น</option>
+                <option value="stored">ภาพที่จัดเก็บไว้</option>
+              </select></label>
+            </div>
+            <div class="image-stage"><img id="satelliteImage" alt="ภาพ Sentinel สำหรับแปลงสาธิต"><div id="imageLoading">กำลังประมวลผลภาพ…</div></div>
+            <div id="bandHelp" class="info-callout"></div>
+          </article>
+          <article class="panel"><div class="panel-head"><h3>Metadata & alignment</h3><span class="provenance public">PUBLIC</span></div><div id="imageMetadata" class="state-stack"></div></article>
+        </div>
+      </section>
+
+      <section id="view-field" class="view">
+        <div class="section-intro"><div><p class="eyebrow green">OFFLINE-FIRST CAPTURE</p><h2>Field Operations</h2><p>บันทึกงานภาคสนามเป็นฉบับร่างในเครื่องก่อน แล้วซิงก์เมื่อระบบพร้อม</p></div></div>
+        <div class="dashboard-grid two">
+          <form id="fieldForm" class="panel form-stack">
+            <label>กิจกรรม<select name="activity_type"><option>ตรวจระดับน้ำ</option><option>ให้น้ำ</option><option>หยุดให้น้ำ</option><option>ตรวจพืช</option><option>ใส่ปุ๋ย</option></select></label>
+            <label>ระดับน้ำ (ซม.)<input name="water_level_cm" type="number" step="0.1" value="-8"></label>
+            <label>หมายเหตุ<textarea name="notes" rows="4" placeholder="รายละเอียดและหลักฐาน"></textarea></label>
+            <button class="primary-button" type="submit">บันทึกฉบับร่าง</button>
+          </form>
+          <article class="panel"><div class="panel-head"><h3>Sync queue</h3><span id="draftCount" class="score-badge">0</span></div><div id="draftList" class="feed"></div><button id="syncDraftsButton" class="ghost-button full">ซิงก์รายการที่รอ</button></article>
+        </div>
+      </section>
+
+      <section id="view-mrv" class="view">
+        <div class="section-intro"><div><p class="eyebrow green">CARBON MRV READINESS</p><h2>ความพร้อมด้านข้อมูลคาร์บอน</h2><p>แสดงเฉพาะความพร้อมและช่องว่าง ไม่คำนวณหรือกล่าวอ้างคาร์บอนเครดิต</p></div><a class="ghost-button" href="/api/v1/reports/mrv-readiness.html" target="_blank">เปิดรายงาน</a></div>
+        <div id="carbonStatus"></div>
+      </section>
+
+      <section id="view-verifier" class="view">
+        <div class="section-intro"><div><p class="eyebrow green">AUDITABLE EVIDENCE</p><h2>Verifier Portal</h2><p>ทะเบียนหลักฐานพร้อม hash, ผู้บันทึก, แหล่งที่มา และผลทบทวน</p></div></div>
+        <article class="panel"><div class="table-wrap"><table><thead><tr><th>หลักฐาน</th><th>ประเภท</th><th>วันที่</th><th>Provenance</th><th>Hash</th><th>ผลทบทวน</th></tr></thead><tbody id="evidenceTable"></tbody></table></div></article>
+        <article class="panel reports-panel"><div class="panel-head"><h3>Verification reports</h3></div><div id="reportGrid" class="report-grid"></div></article>
+      </section>
+
+      <section id="view-scenarios" class="view">
+        <div class="section-intro"><div><p class="eyebrow green">DETERMINISTIC DEMO ENGINE</p><h2>10 End-to-End Scenarios</h2><p>เลือกสถานการณ์แล้วระบบจะเล่นสถานะ ข้อแนะนำ alert หลักฐาน และผลลัพธ์แบบทำซ้ำได้</p></div></div>
+        <div class="scenario-layout">
+          <div id="scenarioGrid" class="scenario-grid"></div>
+          <aside class="panel scenario-console">
+            <div class="panel-head"><div><p class="eyebrow green">NOW PLAYING</p><h3 id="scenarioTitle">เลือกสถานการณ์</h3></div><span id="scenarioStatus" class="score-badge">IDLE</span></div>
+            <div class="progress-track"><div id="scenarioProgress"></div></div>
+            <div id="scenarioState" class="state-stack empty-state">ยังไม่ได้เริ่มสถานการณ์</div>
+            <div class="console-controls">
+              <button data-scenario-action="pause" class="ghost-button">Pause</button>
+              <button data-scenario-action="resume" class="ghost-button">Resume</button>
+              <button data-scenario-action="reset" class="ghost-button">Reset</button>
+              <button data-scenario-action="tick" class="primary-button">Next step</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="assistant-dock" aria-label="ผู้ช่วยอธิบายข้อมูล">
+        <button id="assistantToggle">AI</button>
+        <div id="assistantPanel" hidden>
+          <div class="panel-head"><div><p class="eyebrow green">EXPLAINABLE ASSISTANT</p><h3>ถามข้อมูลแปลง</h3></div><button id="assistantClose" class="icon-button">×</button></div>
+          <div id="assistantAnswer">ถามได้ เช่น “ทำไมยังไม่ควรให้น้ำ?” หรือ “ข้อมูลมั่นใจแค่ไหน?”</div>
+          <form id="assistantForm"><input id="assistantQuestion" required placeholder="พิมพ์คำถาม…"><button class="primary-button">ถาม</button></form>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" role="status"></div>
+  <script type="module" src="/static/ultimate.js"></script>
+</body>
+</html>

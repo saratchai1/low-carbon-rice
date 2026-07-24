@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from geoalchemy2 import Geometry
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,12 @@ class Plot(Base):
     center_lon: Mapped[float] = mapped_column(Float, nullable=False)
     area_rai: Mapped[float] = mapped_column(Float, nullable=False)
     boundary_source: Mapped[str] = mapped_column(String(80), default="synthetic_demo")
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), index=True
+    )
+    farmer_id: Mapped[str | None] = mapped_column(
+        ForeignKey("farmers.id", ondelete="SET NULL"), index=True
+    )
 
     crop_stage: Mapped[str] = mapped_column(String(80), default="แตกกอ")
     water_state: Mapped[str] = mapped_column(String(80), default="ช่วงปล่อยแห้ง")
@@ -64,6 +70,14 @@ class CropSeason(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(30), default="active")
     methodology_version: Mapped[str | None] = mapped_column(String(80))
+    crop_year: Mapped[int | None] = mapped_column(Integer)
+    rice_variety: Mapped[str | None] = mapped_column(String(120))
+    planting_method: Mapped[str | None] = mapped_column(String(80))
+    planting_date: Mapped[datetime | None] = mapped_column(Date)
+    expected_harvest_date: Mapped[datetime | None] = mapped_column(Date)
+    actual_harvest_date: Mapped[datetime | None] = mapped_column(Date)
+    baseline_scenario: Mapped[str | None] = mapped_column(Text)
+    project_scenario: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     plot: Mapped[Plot] = relationship(back_populates="crop_seasons")
@@ -157,3 +171,277 @@ class AuditEvent(Base):
     reason: Mapped[str | None] = mapped_column(Text)
     request_id: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), default="ACTIVE")
+    source_type: Mapped[str] = mapped_column(String(20), default="REFERENCE")
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class FarmerGroup(Base):
+    __tablename__ = "farmer_groups"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    province: Mapped[str | None] = mapped_column(String(120))
+    source_type: Mapped[str] = mapped_column(String(20), default="SIMULATED")
+
+
+class Farmer(Base):
+    __tablename__ = "farmers"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    group_id: Mapped[str] = mapped_column(ForeignKey("farmer_groups.id"), index=True)
+    display_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    phone_masked: Mapped[str | None] = mapped_column(String(40))
+    source_type: Mapped[str] = mapped_column(String(20), default="SIMULATED")
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class IoTGateway(Base):
+    __tablename__ = "iot_gateways"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    plot_id: Mapped[str | None] = mapped_column(ForeignKey("plots.id"), index=True)
+    protocol: Mapped[str] = mapped_column(String(40), default="SIMULATOR")
+    status: Mapped[str] = mapped_column(String(30), default="ONLINE")
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ip_address: Mapped[str | None] = mapped_column(String(80))
+    source_type: Mapped[str] = mapped_column(String(20), default="SIMULATED")
+    configuration: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class SensorDevice(Base):
+    __tablename__ = "sensor_devices"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    device_name: Mapped[str] = mapped_column(String(180), nullable=False)
+    device_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    manufacturer: Mapped[str | None] = mapped_column(String(100))
+    model: Mapped[str | None] = mapped_column(String(100))
+    serial_number: Mapped[str | None] = mapped_column(String(120))
+    firmware_version: Mapped[str | None] = mapped_column(String(80))
+    plot_id: Mapped[str | None] = mapped_column(ForeignKey("plots.id"), index=True)
+    gateway_id: Mapped[str | None] = mapped_column(ForeignKey("iot_gateways.id"), index=True)
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    installation_date: Mapped[datetime | None] = mapped_column(Date)
+    installation_depth_cm: Mapped[float | None] = mapped_column(Float)
+    installation_elevation_m: Mapped[float | None] = mapped_column(Float)
+    communication_protocol: Mapped[str] = mapped_column(String(40), default="SIMULATOR")
+    battery_percent: Mapped[float | None] = mapped_column(Float)
+    signal_rssi: Mapped[float | None] = mapped_column(Float)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calibration_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(30), default="SIMULATED")
+    source_type: Mapped[str] = mapped_column(String(20), default="SIMULATED")
+    is_simulated: Mapped[bool] = mapped_column(Boolean, default=True)
+    metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class SensorChannel(Base):
+    __tablename__ = "sensor_channels"
+    __table_args__ = (UniqueConstraint("device_id", "channel_key"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    device_id: Mapped[str] = mapped_column(ForeignKey("sensor_devices.id"), index=True)
+    channel_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    metric: Mapped[str] = mapped_column(String(100), nullable=False)
+    unit: Mapped[str] = mapped_column(String(40), nullable=False)
+    minimum_value: Mapped[float | None] = mapped_column(Float)
+    maximum_value: Mapped[float | None] = mapped_column(Float)
+    depth_cm: Mapped[float | None] = mapped_column(Float)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class CalibrationRecord(Base):
+    __tablename__ = "calibration_records"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    device_id: Mapped[str] = mapped_column(ForeignKey("sensor_devices.id"), index=True)
+    calibrated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    next_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    calibrated_by: Mapped[str] = mapped_column(String(120))
+    result: Mapped[str] = mapped_column(String(40), default="PASS")
+    notes: Mapped[str | None] = mapped_column(Text)
+    source_type: Mapped[str] = mapped_column(String(20), default="MANUAL")
+
+
+class MaintenanceRecord(Base):
+    __tablename__ = "maintenance_records"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    device_id: Mapped[str] = mapped_column(ForeignKey("sensor_devices.id"), index=True)
+    maintenance_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), default="OPEN")
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    assigned_to: Mapped[str | None] = mapped_column(String(120))
+    notes: Mapped[str | None] = mapped_column(Text)
+
+
+class SensorObservation(Base):
+    __tablename__ = "sensor_observations"
+    __table_args__ = (
+        UniqueConstraint("device_id", "metric", "observed_at", name="uq_observation_identity"),
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid4()))
+    device_id: Mapped[str] = mapped_column(ForeignKey("sensor_devices.id"), index=True)
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    crop_season_id: Mapped[str | None] = mapped_column(ForeignKey("crop_seasons.id"), index=True)
+    metric: Mapped[str] = mapped_column(String(100), index=True)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    unit: Mapped[str] = mapped_column(String(40), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    source_type: Mapped[str] = mapped_column(String(20), default="SIMULATED")
+    source_name: Mapped[str] = mapped_column(String(160), default="Rice Twin Simulator")
+    quality_flag: Mapped[str] = mapped_column(String(40), default="valid")
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=True)
+    ingestion_protocol: Mapped[str] = mapped_column(String(40), default="SIMULATOR")
+    external_id: Mapped[str | None] = mapped_column(String(160), unique=True)
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class PublicDataSnapshot(Base):
+    __tablename__ = "public_data_snapshots"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    category: Mapped[str] = mapped_column(String(80), index=True)
+    provider: Mapped[str] = mapped_column(String(160), nullable=False)
+    station_name: Mapped[str | None] = mapped_column(String(180))
+    plot_id: Mapped[str | None] = mapped_column(ForeignKey("plots.id"), index=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    distance_km: Mapped[float | None] = mapped_column(Float)
+    quality_flag: Mapped[str] = mapped_column(String(40), default="sample")
+    licence_status: Mapped[str] = mapped_column(String(80), default="demo_sample")
+    source_type: Mapped[str] = mapped_column(String(20), default="PUBLIC")
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    limitations: Mapped[str | None] = mapped_column(Text)
+
+
+class AWDRuleConfiguration(Base):
+    __tablename__ = "awd_rule_configurations"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    version: Mapped[str] = mapped_column(String(40), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    parameters: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    effective_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    status: Mapped[str] = mapped_column(String(30), default="ACTIVE")
+    source_type: Mapped[str] = mapped_column(String(20), default="REFERENCE")
+    disclaimer: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class TwinStateSnapshot(Base):
+    __tablename__ = "twin_state_snapshots"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid4()))
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    crop_season_id: Mapped[str | None] = mapped_column(ForeignKey("crop_seasons.id"), index=True)
+    state: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    model_version: Mapped[str] = mapped_column(String(40), default="TWIN-DEMO-1.0")
+    source_type: Mapped[str] = mapped_column(String(20), default="DERIVED")
+    simulated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+class Recommendation(Base):
+    __tablename__ = "recommendations"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid4()))
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    crop_season_id: Mapped[str | None] = mapped_column(ForeignKey("crop_seasons.id"))
+    recommendation: Mapped[str] = mapped_column(String(80), nullable=False)
+    severity: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="RECOMMENDATION_CREATED")
+    rule_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    reasons: Mapped[list] = mapped_column(JSONB, default=list)
+    inputs_used: Mapped[dict] = mapped_column(JSONB, default=dict)
+    confidence: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    next_review_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DecisionEvent(Base):
+    __tablename__ = "decision_events"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid4()))
+    recommendation_id: Mapped[str] = mapped_column(ForeignKey("recommendations.id"), index=True)
+    lifecycle_status: Mapped[str] = mapped_column(String(50), nullable=False)
+    actor: Mapped[str] = mapped_column(String(120), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    outcome: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid4()))
+    alert_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), default="OPEN")
+    plot_id: Mapped[str | None] = mapped_column(ForeignKey("plots.id"), index=True)
+    device_id: Mapped[str | None] = mapped_column(ForeignKey("sensor_devices.id"), index=True)
+    assigned_to: Mapped[str | None] = mapped_column(String(120))
+    detail: Mapped[str | None] = mapped_column(Text)
+    source_type: Mapped[str] = mapped_column(String(20), default="DERIVED")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution_note: Mapped[str | None] = mapped_column(Text)
+
+
+class EvidenceRecord(Base):
+    __tablename__ = "evidence_records"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid4()))
+    evidence_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    crop_season_id: Mapped[str | None] = mapped_column(ForeignKey("crop_seasons.id"), index=True)
+    activity_id: Mapped[str | None] = mapped_column(ForeignKey("activities.id"))
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    captured_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    captured_by: Mapped[str | None] = mapped_column(String(120))
+    latitude: Mapped[float | None] = mapped_column(Float)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    file_hash: Mapped[str | None] = mapped_column(String(64))
+    source_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    review_status: Mapped[str] = mapped_column(String(30), default="PENDING")
+    reviewed_by: Mapped[str | None] = mapped_column(String(120))
+    review_note: Mapped[str | None] = mapped_column(Text)
+    metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class ScenarioRun(Base):
+    __tablename__ = "scenario_runs"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid4()))
+    scenario_key: Mapped[str] = mapped_column(String(80), index=True)
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    status: Mapped[str] = mapped_column(String(30), default="RUNNING")
+    speed: Mapped[int] = mapped_column(Integer, default=60)
+    seed: Mapped[int] = mapped_column(Integer, default=20260724)
+    tick: Mapped[int] = mapped_column(Integer, default=0)
+    simulated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    state: Mapped[dict] = mapped_column(JSONB, default=dict)
+    outcome: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rice Twin — Executive Presentation</title>
+  <link rel="stylesheet" href="/static/presentation.css">
+</head>
+<body>
+  <main id="deck">
+    <section class="slide active dark">
+      <p class="kicker">ULTIMATE LOW-CARBON RICE DIGITAL TWIN</p>
+      <h1>จากข้อมูลกระจัดกระจาย<br>สู่การตัดสินใจที่ตรวจสอบได้</h1>
+      <p class="lead">Executive demonstration · 24 July 2026</p>
+      <div class="hero-metrics"><span><b>6</b> แปลงสาธิต</span><span><b>12</b> อุปกรณ์ IoT</span><span><b>10</b> สถานการณ์ end-to-end</span></div>
+    </section>
+    <section class="slide">
+      <p class="kicker">THE OPERATING QUESTION</p>
+      <h2>เมื่อไรควรให้น้ำ และเราพิสูจน์เหตุผลนั้นได้อย่างไร?</h2>
+      <div class="three"><article><b>01</b><h3>Observe</h3><p>ระดับน้ำ ความชื้น ฝน พลังงาน ดาวเทียม และงานภาคสนาม</p></article><article><b>02</b><h3>Decide</h3><p>กฎ AWD ที่แสดง threshold, input, เหตุผล และ confidence</p></article><article><b>03</b><h3>Evidence</h3><p>เก็บ provenance, เวลา, hash, ผู้บันทึก และผลทบทวน</p></article></div>
+    </section>
+    <section class="slide dark">
+      <p class="kicker">LIVE DEMO · SCENARIO 2</p>
+      <h2>รอฝน 12 ชั่วโมง ก่อนเดินเครื่องสูบน้ำ</h2>
+      <div id="scenarioMetrics" class="hero-metrics large"><span><small>ระดับน้ำ</small><b id="pWater">−12.0</b> cm</span><span><small>ฝนพยากรณ์</small><b>22.0</b> mm</span><span><small>Recommendation</small><b id="pDecision">WAIT</b></span></div>
+      <div class="scenario-track"><i id="scenarioBar"></i></div>
+      <p id="scenarioNarrative" class="lead">กฎแนะนำให้รอ เพราะความชื้นดินยังยอมรับได้และมีฝนเหนือ threshold</p>
+      <button id="runScenario">เล่นสถานการณ์</button>
+    </section>
+    <section class="slide">
+      <p class="kicker">ASSURANCE BY DESIGN</p>
+      <h2>แยก “ข้อเท็จจริง” ออกจาก “ค่าที่อนุมาน”</h2>
+      <div class="provenance-grid"><span class="live">LIVE</span><span class="sim">SIMULATED</span><span class="public">PUBLIC</span><span class="manual">MANUAL</span><span class="derived">DERIVED</span><span class="reference">REFERENCE</span></div>
+      <p class="lead center">ทุก KPI ตัวแปร และหลักฐานมีที่มาปรากฏใน UI และรายงาน</p>
+    </section>
+    <section class="slide">
+      <p class="kicker">CARBON MRV READINESS</p>
+      <h2>ระบบเตรียมข้อมูลให้พร้อมตรวจ<br>แต่ไม่กล่าวอ้างคาร์บอนเครดิต</h2>
+      <div class="warning"><strong>METHODOLOGY NOT CONFIGURED</strong><p>ยังไม่มี methodology, emission factor หรือผลการทวนสอบที่ได้รับอนุมัติ จึงไม่คำนวณ eligible amount, verified amount หรือ issued credits</p></div>
+      <p class="lead center">เป้าหมายของเดโมคือ traceability และ readiness — ไม่ใช่การออกเครดิต</p>
+    </section>
+    <section class="slide dark">
+      <p class="kicker">DECISION-READY PLATFORM</p>
+      <h2>พร้อมสาธิตการทำงานครบวงจร</h2>
+      <div class="checklist"><span>✓ Executive command center</span><span>✓ IoT registry & simulator</span><span>✓ Public-data adapters</span><span>✓ Sentinel rice-band viewer</span><span>✓ Offline-first field capture</span><span>✓ Verifier evidence package</span></div>
+      <a href="/" class="open-app">เปิดระบบปฏิบัติการ</a>
+    </section>
+  </main>
+  <div class="demo-warning">DEMO-PLOT-001 is a synthetic demonstration boundary. It is not a cadastral, surveyed, legal, ownership, or officially verified plot boundary.</div>
+  <nav class="controls"><button id="prev" aria-label="ก่อนหน้า">←</button><span id="counter">1 / 6</span><button id="next" aria-label="ถัดไป">→</button><button id="fullscreen">⛶</button></nav>
+  <script src="/static/presentation.js"></script>
+</body>
+</html>

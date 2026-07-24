@@ -6,9 +6,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -17,7 +22,7 @@ from .config import settings
 from .database import SessionLocal, get_db, init_database
 from .models import Activity, AuditEvent, CropSeason, Imagery, Plot, RuleEvaluation
 from .schemas import ActivityCreate, ActivityOut, ImageryOut, PlotCreate, PlotUpdate
-from .seed import DEMO_CENTER_LAT, DEMO_CENTER_LON, seed_demo_data
+from .seed import DEMO_BOUNDARY_WARNING, DEMO_CENTER_LAT, DEMO_CENTER_LON, seed_demo_data
 from .services.raster import create_preview
 from .services.catalog import bounds_intersect, import_satellite_catalog, sha256_file
 from .services.data_quality import evaluate_data_quality
@@ -67,6 +72,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+from .api_v1 import router as api_v1_router  # noqa: E402
+
+app.include_router(api_v1_router)
+
+
+def v1_error_payload(request: Request, code: str, message: str, details: object) -> dict:
+    return {
+        "error": {"code": code, "message": message, "details": details},
+        "meta": {
+            "request_id": getattr(request.state, "request_id", str(uuid4())),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "is_demo": True,
+            "boundary_warning": DEMO_BOUNDARY_WARNING,
+        },
+    }
+
+
+@app.exception_handler(HTTPException)
+async def ultimate_http_error(request: Request, exc: HTTPException):
+    if not request.url.path.startswith("/api/v1/"):
+        return await http_exception_handler(request, exc)
+    message = exc.detail if isinstance(exc.detail, str) else "The request could not be completed"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=v1_error_payload(
+            request, f"HTTP_{exc.status_code}", message, exc.detail
+        ),
+        headers=exc.headers,
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def ultimate_validation_error(request: Request, exc: RequestValidationError):
+    if not request.url.path.startswith("/api/v1/"):
+        return await request_validation_exception_handler(request, exc)
+    return JSONResponse(
+        status_code=422,
+        content=v1_error_payload(
+            request, "VALIDATION_ERROR", "Request validation failed", exc.errors()
+        ),
+    )
+
+
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    request.state.request_id = request.headers.get("X-Request-ID", str(uuid4()))
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    response.headers["X-Rice-Twin-Demo"] = "true"
+    return response
 
 
 def plot_properties(plot: Plot) -> dict:
@@ -131,7 +187,17 @@ def add_audit(
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
+    return FileResponse(STATIC_DIR / "ultimate.html")
+
+
+@app.get("/legacy", include_in_schema=False)
+def legacy_index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/presentation", include_in_schema=False)
+def presentation() -> FileResponse:
+    return FileResponse(STATIC_DIR / "presentation.html")
 
 
 @app.get("/api/health")
@@ -148,7 +214,7 @@ def config() -> dict:
         "max_upload_mb": settings.max_upload_mb,
         "awd_rule_version": DEMO_RULE_VERSION,
         "satellite_catalog_enabled": settings.satellite_output_dir.exists(),
-        "boundary_warning": "Demonstration boundary only; not a cadastral, surveyed, or legal parcel boundary.",
+        "boundary_warning": DEMO_BOUNDARY_WARNING,
     }
 
 
