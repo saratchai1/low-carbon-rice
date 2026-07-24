@@ -20,7 +20,7 @@ from typing import Any, Iterable
 import numpy as np
 import rasterio
 from rasterio.features import geometry_mask
-from rasterio.warp import transform_bounds, transform_geom
+from rasterio.warp import transform, transform_bounds, transform_geom
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -84,6 +84,34 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def raster_spatial_metadata(dataset: rasterio.io.DatasetReader) -> dict[str, Any]:
+    """Return an envelope for analysis and the four real raster corners for display."""
+    bounds_wgs84 = transform_bounds(
+        dataset.crs, "EPSG:4326", *dataset.bounds, densify_pts=21
+    )
+    source_corners = [
+        dataset.transform * (0, 0),
+        dataset.transform * (dataset.width, 0),
+        dataset.transform * (dataset.width, dataset.height),
+        dataset.transform * (0, dataset.height),
+    ]
+    source_x, source_y = zip(*source_corners)
+    longitude, latitude = transform(
+        dataset.crs, "EPSG:4326", source_x, source_y
+    )
+    display_coordinates = [
+        [float(lon), float(lat)] for lon, lat in zip(longitude, latitude)
+    ]
+    return {
+        "bounds_wgs84": [float(value) for value in bounds_wgs84],
+        "display_coordinates_wgs84": display_coordinates,
+        "footprint_wgs84": {
+            "type": "Polygon",
+            "coordinates": [[*display_coordinates, display_coordinates[0]]],
+        },
+    }
 
 
 def parse_scene_date(name: str) -> datetime | None:
@@ -256,7 +284,8 @@ def _s2_metrics(path: Path, plot_area_rai: float) -> dict[str, Any]:
             raise ValueError("Sentinel-2 rice stack requires 10 explicit bands")
         arrays, valid = _masked_values(dataset, [7, 8, 9, 10])
         ndvi, lswi, ndwi, evi = arrays
-        bounds_wgs84 = transform_bounds(dataset.crs, "EPSG:4326", *dataset.bounds)
+        spatial = raster_spatial_metadata(dataset)
+        bounds_wgs84 = spatial["bounds_wgs84"]
         coverage = _intersection_percent(bounds_wgs84)
         inside_count = max(
             1,
@@ -292,7 +321,7 @@ def _s2_metrics(path: Path, plot_area_rai: float) -> dict[str, Any]:
                 "height": dataset.height,
                 "band_count": dataset.count,
                 "band_names": list(dataset.descriptions),
-                "bounds_wgs84": list(bounds_wgs84),
+                **spatial,
                 "bounds_source_crs": list(dataset.bounds),
                 "dtype": dataset.dtypes[0],
             },
@@ -363,7 +392,8 @@ def _s1_metrics(scene_dir: Path, plot_area_rai: float) -> dict[str, Any]:
         vh = vh_arrays[0]
         difference = diff_arrays[0]
         valid = vv_valid & vh_valid & diff_valid
-        bounds_wgs84 = transform_bounds(vv_source.crs, "EPSG:4326", *vv_source.bounds)
+        spatial = raster_spatial_metadata(vv_source)
+        bounds_wgs84 = spatial["bounds_wgs84"]
         coverage = _intersection_percent(bounds_wgs84)
         inside = geometry_mask(
             [transform_geom("EPSG:4326", vv_source.crs, PLOT_GEOJSON)],
@@ -386,7 +416,7 @@ def _s1_metrics(scene_dir: Path, plot_area_rai: float) -> dict[str, Any]:
                 "height": vv_source.height,
                 "band_count": 3,
                 "band_names": ["VV_dB", "VH_dB", "VH_minus_VV_dB"],
-                "bounds_wgs84": list(bounds_wgs84),
+                **spatial,
                 "bounds_source_crs": list(vv_source.bounds),
                 "dtype": vv_source.dtypes[0],
             },
@@ -464,6 +494,76 @@ def _process_scene(
     asset_id = _asset_id(sensor, captured_at)
     existing = db.get(ImageryAsset, asset_id)
     if existing is not None:
+        digest = sha256_file(main_path)
+        if (
+            existing.sha256 == digest
+            and (existing.metadata_json or {}).get("display_coordinates_wgs84")
+        ):
+            return existing
+        result = (
+            _s2_metrics(main_path, plot.area_rai)
+            if sensor == "Sentinel-2"
+            else _s1_metrics(scene_dir, plot.area_rai)
+        )
+        metadata = result["metadata"]
+        quality = result["quality"]
+        metric = result["metric"]
+        status = "READY" if quality["usable"] else "WARNING"
+        existing.crs = metadata["crs"]
+        existing.resolution_x = metadata["resolution"][0]
+        existing.resolution_y = metadata["resolution"][1]
+        existing.width = metadata["width"]
+        existing.height = metadata["height"]
+        existing.band_count = metadata["band_count"]
+        existing.band_names = metadata["band_names"]
+        existing.quality_score = quality["image_quality_score"]
+        existing.bounds = metadata["bounds_wgs84"]
+        existing.footprint = metadata["footprint_wgs84"]
+        existing.plot_intersection_percent = quality["spatial_coverage_score"]
+        existing.sha256 = digest
+        existing.processing_status = status
+        existing.processing_error = None
+        existing.metadata_json = {
+            **(existing.metadata_json or {}),
+            **metadata,
+            "scene_directory": str(scene_dir),
+            "companion_files": sorted(path.name for path in scene_dir.glob("*") if path.is_file()),
+            "original_preserved": True,
+            "synthetic_boundary_warning": DEMO_BOUNDARY_WARNING,
+        }
+
+        quality_row = db.get(ImageryQualityResult, f"quality-{asset_id}")
+        if quality_row is not None:
+            for key, value in quality.items():
+                setattr(quality_row, key, value)
+            quality_row.processed_at = utcnow()
+
+        metric_row = db.get(ImageryPlotMetric, f"metric-{asset_id}")
+        if metric_row is not None:
+            confidence = (
+                "HIGH"
+                if quality["image_quality_score"] >= 85 and quality["usable"]
+                else "MODERATE"
+                if quality["usable"]
+                else "LOW"
+            )
+            for key, value in metric.items():
+                setattr(metric_row, key, value)
+            metric_row.image_quality_score = quality["image_quality_score"]
+            metric_row.usable_plot_coverage = quality["spatial_coverage_score"]
+            metric_row.confidence = confidence
+            metric_row.limitations = quality["limitations"]
+            metric_row.processed_at = utcnow()
+
+        processing_row = db.get(ImageryProcessingRun, f"process-{asset_id}")
+        if processing_row is not None:
+            processing_row.status = status
+            processing_row.completed_at = utcnow()
+            processing_row.processing_log = [
+                *(processing_row.processing_log or []),
+                "Refreshed metrics and real WGS84 corner coordinates from current source raster",
+            ]
+        db.flush()
         return existing
 
     started_at = utcnow()
@@ -523,18 +623,7 @@ def _process_scene(
             band_names=metadata["band_names"],
             quality_score=quality["image_quality_score"],
             bounds=metadata["bounds_wgs84"],
-            footprint={
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [metadata["bounds_wgs84"][0], metadata["bounds_wgs84"][1]],
-                        [metadata["bounds_wgs84"][2], metadata["bounds_wgs84"][1]],
-                        [metadata["bounds_wgs84"][2], metadata["bounds_wgs84"][3]],
-                        [metadata["bounds_wgs84"][0], metadata["bounds_wgs84"][3]],
-                        [metadata["bounds_wgs84"][0], metadata["bounds_wgs84"][1]],
-                    ]
-                ],
-            },
+            footprint=metadata["footprint_wgs84"],
             plot_intersection_percent=quality["spatial_coverage_score"],
             sha256=digest,
             processing_status=status,
@@ -1374,6 +1463,7 @@ def serialize_metric(metric: ImageryPlotMetric, asset: ImageryAsset) -> dict[str
         "sensor": asset.source_name,
         "bounds": asset.bounds,
         "footprint": asset.footprint,
+        "coordinates": (asset.metadata_json or {}).get("display_coordinates_wgs84"),
         "status": asset.processing_status,
         "quality": asset.quality_score,
         "plot_coverage_percent": asset.plot_intersection_percent,

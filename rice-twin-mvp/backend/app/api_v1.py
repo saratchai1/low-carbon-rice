@@ -1008,7 +1008,14 @@ def historical_image_preview(
         bands = [1]
     if not source_path.exists():
         raise HTTPException(status_code=404, detail="Source raster is unavailable")
-    preview_path = settings.imagery_dir / "historical-previews" / f"{image_id}-{mode}.png"
+    # Include the source digest so a repaired/replaced GeoTIFF can never reuse a
+    # stale preview generated from an older partial tile.
+    source_version = (asset.sha256 or "unversioned")[:12]
+    preview_path = (
+        settings.imagery_dir
+        / "historical-previews"
+        / f"{image_id}-{source_version}-{mode}.png"
+    )
     if not preview_path.exists():
         create_preview(
             source_path,

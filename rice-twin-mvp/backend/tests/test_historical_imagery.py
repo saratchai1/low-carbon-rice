@@ -19,6 +19,7 @@ from app.services.historical_imagery import (
     detect_crop_cycles,
     detect_temporal_gaps,
     propose_sensor_locations,
+    raster_spatial_metadata,
     rolling_median,
     sha256_file,
     validate_band_mapping,
@@ -85,6 +86,20 @@ def test_valid_geotiff_is_clipped_and_scored(tmp_path):
     assert result["metadata"]["band_count"] == 10
     assert result["quality"]["spatial_coverage_score"] > 0
     assert result["metric"]["vegetation_score"] == pytest.approx(0.55)
+
+
+def test_display_coordinates_use_real_transformed_raster_corners(tmp_path):
+    path = tmp_path / "corners.tif"
+    _write_s2_stack(path)
+    with rasterio.open(path) as dataset:
+        spatial = raster_spatial_metadata(dataset)
+    coordinates = spatial["display_coordinates_wgs84"]
+    assert len(coordinates) == 4
+    assert spatial["footprint_wgs84"]["coordinates"][0][:-1] == coordinates
+    assert spatial["footprint_wgs84"]["coordinates"][0][-1] == coordinates[0]
+    # A UTM raster is slightly rotated after projection to WGS84.  Flattening
+    # these latitudes into an axis-aligned envelope is what skewed the overlay.
+    assert coordinates[0][1] != pytest.approx(coordinates[1][1], abs=1e-8)
 
 
 def test_invalid_crs_is_rejected(tmp_path):
