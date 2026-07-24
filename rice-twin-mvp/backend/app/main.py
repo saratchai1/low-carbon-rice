@@ -26,6 +26,7 @@ from .seed import DEMO_BOUNDARY_WARNING, DEMO_CENTER_LAT, DEMO_CENTER_LON, seed_
 from .services.raster import create_preview
 from .services.catalog import bounds_intersect, import_satellite_catalog, sha256_file
 from .services.data_quality import evaluate_data_quality
+from .services.historical_imagery import import_historical_archive
 from .services.rules import DEMO_RULE_VERSION, evaluate_awd
 
 
@@ -56,6 +57,7 @@ async def lifespan(_: FastAPI):
         plot = db.get(Plot, "DEMO-PLOT-001")
         if plot is not None:
             import_satellite_catalog(db, plot)
+            import_historical_archive(db, plot, settings.historical_output_dir)
     yield
 
 
@@ -198,6 +200,11 @@ def legacy_index() -> FileResponse:
 @app.get("/presentation", include_in_schema=False)
 def presentation() -> FileResponse:
     return FileResponse(STATIC_DIR / "presentation.html")
+
+
+@app.get("/historical", include_in_schema=False)
+def historical() -> FileResponse:
+    return FileResponse(STATIC_DIR / "historical.html")
 
 
 @app.get("/api/health")

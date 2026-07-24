@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Historical Baseline — Rice Twin</title>
+  <link rel="stylesheet" href="/static/vendor/maplibre-gl.css">
+  <link rel="stylesheet" href="/static/historical.css">
+</head>
+<body>
+  <aside class="side">
+    <a class="brand" href="/"><b>RT</b><span><strong>Rice Twin</strong><small>Historical Intelligence</small></span></a>
+    <nav>
+      <a href="#explorer" class="active">▦ Baseline Explorer</a>
+      <a href="#replay">▶ Historical Replay</a>
+      <a href="#cycles">⌁ Crop Cycles</a>
+      <a href="#evidence">✓ Evidence Matrix</a>
+      <a href="#sensors">◇ Sensor Proposals</a>
+      <a href="#limitations">! Limitations</a>
+    </nav>
+    <div class="side-foot"><i></i> Actual archive analysis<br><small>Sentinel‑2 + Sentinel‑1 · 10 m</small></div>
+  </aside>
+  <main>
+    <header>
+      <button id="menu" aria-label="เปิดเมนู">☰</button>
+      <div><small>LOW-CARBON RICE DIGITAL TWIN</small><h1>Historical Baseline Explorer</h1></div>
+      <div class="header-state"><span>ANALYTICAL DEMO</span><a href="/presentation">Presentation ↗</a></div>
+    </header>
+    <div class="warning"><b>ขอบเขตแปลงสาธิต</b><span id="boundaryWarning"></span></div>
+    <div id="loading" class="loading">กำลังอ่านผลวิเคราะห์จากภาพจริง 3 ปี…</div>
+    <div id="app" hidden>
+      <section id="explorer" class="content">
+        <div class="title"><div><p class="kicker">THREE-YEAR OBSERVATION</p><h2>สิ่งที่ภาพย้อนหลังบอกเราได้</h2><p>ผลด้านล่างคำนวณจาก GeoTIFF ในคลังจริงและแสดง raw observation คู่กับผลวิเคราะห์เสมอ</p></div><span id="runBadge" class="pill"></span></div>
+        <div id="kpis" class="kpis"></div>
+        <section id="replay" class="panel explorer">
+          <div class="panel-head"><div><p class="kicker">HISTORICAL REPLAY</p><h3 id="sceneTitle">—</h3></div><div id="sceneBadges"></div></div>
+          <div class="toolbar">
+            <label>ดาวเทียม<select id="sensor"><option value="all">ทั้งหมด</option><option>Sentinel-2</option><option>Sentinel-1</option></select></label>
+            <label>ปี<select id="year"><option value="all">ทุกปี</option></select></label>
+            <label>สี / มุมมอง<select id="mode"></select></label>
+            <label>แผนที่พื้นหลัง<select id="basemap"><option value="satellite">ภาพถ่าย Esri</option><option value="streets">OpenStreetMap</option></select></label>
+          </div>
+          <div class="replay-grid">
+            <div><div id="map"></div><div class="map-note">เลื่อนแผนที่และใช้ปุ่ม +/− เพื่อซูม · layer ภาพใช้พิกัดจาก GeoTIFF จริง</div></div>
+            <aside class="scene-meta" id="sceneMeta"></aside>
+          </div>
+          <div class="player">
+            <button id="previous" aria-label="ภาพก่อนหน้า">‹</button><button id="play">▶ เล่น</button><button id="next" aria-label="ภาพถัดไป">›</button>
+            <label>ความเร็ว<select id="speed"><option value="3000">1 ภาพ / 3 วินาที</option><option value="1000" selected>1 ภาพ / วินาที</option><option value="250">4 ภาพ / วินาที</option></select></label>
+            <input id="timeline" type="range" min="0" value="0" aria-label="ลำดับภาพ"><strong id="position"></strong>
+          </div>
+          <div id="filmstrip" class="filmstrip"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><div><p class="kicker">RAW + SMOOTHED SERIES</p><h3>Vegetation & wetness timeline</h3></div><span class="pill">ไม่มี interpolation</span></div>
+          <div class="chart-wrap"><svg id="chart" viewBox="0 0 1100 280" role="img" aria-label="กราฟ vegetation และ wetness ย้อนหลัง"></svg></div>
+          <div class="legend"><i class="raw"></i> NDVI mean (raw) <i class="smooth"></i> rolling median <i class="wet"></i> wetness candidate <span>ช่องว่างข้อมูลไม่ถูกเติมอัตโนมัติ</span></div>
+        </section>
+        <section id="cycles" class="two">
+          <div class="panel"><div class="panel-head"><div><p class="kicker">EXPLAINABLE DETECTION</p><h3>Probable crop cycles</h3></div><span id="cycleCount" class="pill"></span></div><div id="cycleList" class="cycles"></div></div>
+          <div class="panel"><div class="panel-head"><div><p class="kicker">YEAR COMPARISON</p><h3>Three-year baseline</h3></div></div><div class="table-wrap"><table><thead><tr><th>ปี</th><th>รอบที่เป็นไปได้</th><th>พื้นที่ปลูก (ไร่)</th><th>ภาพ</th><th>ความมั่นใจ</th></tr></thead><tbody id="yearTable"></tbody></table></div></div>
+        </section>
+        <section id="zones" class="panel"><div class="panel-head"><div><p class="kicker">NATIVE 10 M GRID</p><h3>Recurring zones</h3></div><span class="pill">ไม่ oversample</span></div><div id="zoneCards" class="zone-cards"></div></section>
+        <section id="evidence" class="panel"><div class="panel-head"><div><p class="kicker">WHAT IMAGERY CAN SUPPORT</p><h3>Baseline Evidence Matrix</h3></div></div><div class="table-wrap"><table><thead><tr><th>ประเด็นหลักฐาน</th><th>ระดับการสนับสนุน</th><th>ที่มา</th><th>ข้อสรุปที่อนุญาต</th></tr></thead><tbody id="evidenceTable"></tbody></table></div></section>
+        <section id="sensors" class="panel"><div class="panel-head"><div><p class="kicker">PROPOSED · NOT FIELD VERIFIED</p><h3>Sensor-location proposals</h3></div></div><div id="sensorCards" class="sensor-cards"></div></section>
+        <section class="two">
+          <div class="panel"><div class="panel-head"><div><p class="kicker">QUALITY COMPONENTS</p><h3>Confidence is not one opaque score</h3></div></div><div id="quality" class="quality"></div></div>
+          <div class="panel"><div class="panel-head"><div><p class="kicker">EXPORTS</p><h3>Auditable outputs</h3></div></div><div class="exports">
+            <a href="/api/v1/plots/DEMO-PLOT-001/exports/timeline.csv">CSV time series</a><a href="/api/v1/plots/DEMO-PLOT-001/exports/historical-baseline.json">JSON baseline</a>
+            <a href="/api/v1/plots/DEMO-PLOT-001/exports/recurring-zones.geojson">GeoJSON zones</a><a href="/api/v1/plots/DEMO-PLOT-001/exports/sensor-proposals.geojson">GeoJSON sensors</a>
+            <a href="/api/v1/plots/DEMO-PLOT-001/exports/executive-report.html">Print-ready report</a>
+          </div></div>
+        </section>
+        <section id="limitations" class="limitations"><p class="kicker">REQUIRED SAFEGUARDS</p><h2>ข้อจำกัดที่ต้องอ่านก่อนใช้ผล</h2><ul id="limitationList"></ul></section>
+      </section>
+    </div>
+  </main>
+  <div id="toast"></div>
+  <script type="module" src="/static/historical.js"></script>
+</body>
+</html>

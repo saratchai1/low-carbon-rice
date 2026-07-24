@@ -1,12 +1,13 @@
 import csv
 import io
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -14,26 +15,48 @@ from sqlalchemy.orm import Session
 
 from .database import get_db
 from .models import (
+    AlgorithmVersion,
     Alert,
     AWDRuleConfiguration,
+    BaselineEvidenceItem,
     CropSeason,
+    CropStateObservation,
     DecisionEvent,
     EvidenceRecord,
     Farmer,
     FarmerGroup,
+    HistoricalCropSeason,
     Imagery,
+    ImageryAsset,
+    ImageryBandMapping,
+    ImageryPlotMetric,
+    ImageryProcessingRun,
+    ImageryQualityResult,
     IoTGateway,
     Plot,
     Project,
     PublicDataSnapshot,
+    RecurringZone,
     Recommendation,
     ScenarioRun,
     SensorChannel,
     SensorDevice,
+    SensorLocationProposal,
     SensorObservation,
+    TemporalAnalysisRun,
     TwinStateSnapshot,
 )
+from .config import settings
 from .seed import DEMO_BOUNDARY_WARNING, DEMO_PLOT_ID
+from .services.historical_imagery import (
+    ALGORITHM_VERSION as HISTORICAL_ALGORITHM_VERSION,
+    HISTORICAL_DISCLAIMERS,
+    historical_baseline_payload,
+    import_historical_archive,
+    latest_analysis_run,
+    timeline_payload,
+)
+from .services.raster import create_preview
 from .services.public_data import ADAPTERS
 from .services.ultimate import (
     PROVENANCE_TYPES,
@@ -459,7 +482,7 @@ def list_public_data(request: Request, db: Session = Depends(get_db)) -> dict[st
 @router.get("/imagery")
 def list_imagery_v1(request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
     rows = db.scalars(select(Imagery).order_by(Imagery.captured_at.desc().nullslast())).all()
-    return envelope(request, [{
+    legacy = [{
         "id": row.id, "plot_id": row.plot_id, "filename": row.original_filename,
         "acquired_at": row.captured_at, "sensor": (row.source_metadata or {}).get("satellite", "Uploaded"),
         "crs": row.crs, "bounds": row.bounds_wgs84,
@@ -469,7 +492,32 @@ def list_imagery_v1(request: Request, db: Session = Depends(get_db)) -> dict[str
         "source_type": "PUBLIC" if row.source == "downloaded_catalog" else "MANUAL",
         "metadata": row.source_metadata, "preview_url": f"/api/imagery/{row.id}/preview.png",
         "limitations": "Analytical indicator; not direct verification of AWD compliance.",
-    } for row in rows])
+    } for row in rows]
+    historical_rows = db.scalars(
+        select(ImageryAsset).order_by(ImageryAsset.acquisition_datetime.desc().nullslast())
+    ).all()
+    historical = [{
+        "id": row.id,
+        "plot_id": row.plot_id,
+        "filename": row.original_filename,
+        "acquired_at": row.acquisition_datetime,
+        "sensor": row.source_name,
+        "crs": row.crs,
+        "bounds": row.bounds,
+        "width": row.width,
+        "height": row.height,
+        "band_count": row.band_count,
+        "sha256": row.sha256,
+        "plot_intersection_percent": row.plot_intersection_percent,
+        "processing_status": row.processing_status,
+        "processing_error": row.processing_error,
+        "source_type": row.source_type,
+        "quality_score": row.quality_score,
+        "metadata": row.metadata_json,
+        "preview_url": f"/api/v1/imagery/{row.id}/preview.png",
+        "limitations": "Historical analytical evidence; not direct verification of AWD compliance.",
+    } for row in historical_rows]
+    return envelope(request, legacy + historical)
 
 
 @router.get("/scenarios")
@@ -692,3 +740,735 @@ def report_html(report_key: str, db: Session = Depends(get_db)) -> str:
     <h2>Executive indicators</h2><table><thead><tr><th>Metric</th><th>Value</th><th>Provenance</th></tr></thead>
     <tbody>{kpis}</tbody></table><h2>Limitations</h2>
     <ul>{''.join(f'<li>{item}</li>' for item in payload['limitations'])}</ul></body></html>"""
+
+
+# ---------------------------------------------------------------------------
+# Historical imagery and baseline API
+
+
+class HistoricalImportRequest(BaseModel):
+    force_analysis: bool = False
+
+
+def _historical_asset_dict(asset: ImageryAsset) -> dict[str, Any]:
+    return {
+        "image_id": asset.id,
+        "plot_id": asset.plot_id,
+        "source_name": asset.source_name,
+        "source_type": asset.source_type,
+        "acquisition_datetime": asset.acquisition_datetime,
+        "uploaded_at": asset.uploaded_at,
+        "original_filename": asset.original_filename,
+        "mime_type": asset.mime_type,
+        "crs": asset.crs,
+        "resolution_x": asset.resolution_x,
+        "resolution_y": asset.resolution_y,
+        "width": asset.width,
+        "height": asset.height,
+        "band_count": asset.band_count,
+        "band_names": asset.band_names,
+        "cloud_cover_percent": asset.cloud_cover_percent,
+        "quality_score": asset.quality_score,
+        "bounds": asset.bounds,
+        "footprint": asset.footprint,
+        "plot_intersection_percent": asset.plot_intersection_percent,
+        "sha256": asset.sha256,
+        "license_status": asset.license_status,
+        "processing_status": asset.processing_status,
+        "processing_error": asset.processing_error,
+        "is_demo": asset.is_demo,
+        "metadata": asset.metadata_json,
+        "preview_url": f"/api/v1/imagery/{asset.id}/preview.png",
+    }
+
+
+def _require_plot(db: Session, plot_id: str) -> Plot:
+    plot = db.get(Plot, plot_id)
+    if plot is None:
+        raise HTTPException(status_code=404, detail="Plot not found")
+    return plot
+
+
+def _require_historical_run(db: Session, plot_id: str) -> TemporalAnalysisRun:
+    run = latest_analysis_run(db, plot_id)
+    if run is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Historical analysis has not been run for this plot",
+        )
+    return run
+
+
+@router.post("/imagery/bulk-import")
+def bulk_import_historical_imagery(
+    payload: HistoricalImportRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    plot = _require_plot(db, DEMO_PLOT_ID)
+    result = import_historical_archive(
+        db,
+        plot,
+        settings.historical_output_dir,
+        force_analysis=payload.force_analysis,
+    )
+    return envelope(
+        request,
+        result,
+        {
+            "algorithm_version": HISTORICAL_ALGORITHM_VERSION,
+            "source_archive": str(settings.historical_output_dir),
+            "source_archive_mode": "READ_ONLY",
+        },
+    )
+
+
+@router.get("/imagery/{image_id}")
+def get_historical_image(
+    image_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    asset = db.get(ImageryAsset, image_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Historical image not found")
+    mapping = db.scalar(
+        select(ImageryBandMapping)
+        .where(ImageryBandMapping.imagery_asset_id == image_id)
+        .order_by(ImageryBandMapping.created_at.desc())
+        .limit(1)
+    )
+    quality = db.scalar(
+        select(ImageryQualityResult)
+        .where(ImageryQualityResult.imagery_asset_id == image_id)
+        .order_by(ImageryQualityResult.processed_at.desc())
+        .limit(1)
+    )
+    runs = list(
+        db.scalars(
+            select(ImageryProcessingRun)
+            .where(ImageryProcessingRun.imagery_asset_id == image_id)
+            .order_by(ImageryProcessingRun.started_at.desc())
+        )
+    )
+    return envelope(
+        request,
+        {
+            **_historical_asset_dict(asset),
+            "band_mapping": mapping.mapping if mapping else None,
+            "band_mapping_version": mapping.version if mapping else None,
+            "quality_result": {
+                "image_quality_score": quality.image_quality_score,
+                "spatial_coverage_score": quality.spatial_coverage_score,
+                "valid_pixel_fraction": quality.valid_pixel_fraction,
+                "cloud_or_quality_status": quality.cloud_or_quality_status,
+                "usable": quality.usable,
+                "components": quality.components,
+                "limitations": quality.limitations,
+            }
+            if quality
+            else None,
+            "processing_runs": [
+                {
+                    "run_id": item.id,
+                    "algorithm_name": item.algorithm_name,
+                    "algorithm_version": item.algorithm_version,
+                    "status": item.status,
+                    "started_at": item.started_at,
+                    "completed_at": item.completed_at,
+                    "parameters": item.parameters,
+                    "processing_log": item.processing_log,
+                    "error": item.error,
+                }
+                for item in runs
+            ],
+        },
+    )
+
+
+@router.post("/imagery/{image_id}/process")
+def process_historical_image(
+    image_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    asset = db.get(ImageryAsset, image_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Historical image not found")
+    if asset.processing_status == "FAILED":
+        raise HTTPException(
+            status_code=422,
+            detail=asset.processing_error or "Source scene failed validation",
+        )
+    plot = _require_plot(db, asset.plot_id)
+    result = import_historical_archive(
+        db, plot, settings.historical_output_dir, force_analysis=True
+    )
+    return envelope(
+        request,
+        {
+            "image_id": image_id,
+            "processing_status": asset.processing_status,
+            "analysis": result,
+        },
+    )
+
+
+@router.get("/imagery/{image_id}/metrics")
+def get_historical_image_metrics(
+    image_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    asset = db.get(ImageryAsset, image_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Historical image not found")
+    metric = db.scalar(
+        select(ImageryPlotMetric)
+        .where(ImageryPlotMetric.imagery_asset_id == image_id)
+        .order_by(ImageryPlotMetric.processed_at.desc())
+        .limit(1)
+    )
+    if metric is None:
+        raise HTTPException(status_code=404, detail="No metrics for this image")
+    return envelope(
+        request,
+        {
+            "image_id": image_id,
+            "plot_id": metric.plot_id,
+            "acquisition_datetime": metric.acquisition_datetime,
+            "sensor": metric.sensor,
+            "vegetation_score": metric.vegetation_score,
+            "water_candidate_fraction": metric.water_candidate_fraction,
+            "wet_soil_fraction": metric.wet_soil_fraction,
+            "bare_soil_fraction": metric.bare_soil_fraction,
+            "dense_vegetation_fraction": metric.dense_vegetation_fraction,
+            "uncertain_fraction": metric.uncertain_fraction,
+            "cultivated_area_estimate_rai": metric.cultivated_area_estimate_rai,
+            "possible_harvested_area_rai": metric.possible_harvested_area_rai,
+            "uniformity_score": metric.uniformity_score,
+            "image_quality_score": metric.image_quality_score,
+            "usable_plot_coverage": metric.usable_plot_coverage,
+            "raw_metrics": metric.raw_metrics,
+            "provenance": metric.provenance,
+            "confidence": metric.confidence,
+            "limitations": metric.limitations,
+            "algorithm_version": metric.algorithm_version,
+            "processed_at": metric.processed_at,
+        },
+    )
+
+
+@router.get("/imagery/{image_id}/preview.png")
+def historical_image_preview(
+    image_id: str,
+    mode: str = Query(default="auto"),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    asset = db.get(ImageryAsset, image_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Historical image not found")
+    if asset.processing_status == "FAILED":
+        raise HTTPException(status_code=422, detail=asset.processing_error or "Image failed")
+    allowed = {
+        "auto",
+        "true_color",
+        "false_color",
+        "ndvi",
+        "lswi",
+        "ndwi",
+        "evi",
+        "vv",
+        "vh",
+        "vh_vv_diff",
+    }
+    if mode not in allowed:
+        raise HTTPException(status_code=422, detail=f"Unsupported preview mode: {mode}")
+    if mode == "auto":
+        mode = "true_color" if asset.source_name == "Sentinel-2" else "vv"
+    optical = {
+        "true_color": ([3, 2, 1], None),
+        "false_color": ([4, 3, 2], None),
+        "ndvi": ([7], "vegetation"),
+        "lswi": ([8], "water"),
+        "ndwi": ([9], "water"),
+        "evi": ([10], "vegetation"),
+    }
+    radar = {
+        "vv": ("VV_dB.tif", None),
+        "vh": ("VH_dB.tif", None),
+        "vh_vv_diff": ("VH_VV_diff_dB.tif", "water"),
+    }
+    if asset.source_name == "Sentinel-2" and mode not in optical:
+        raise HTTPException(status_code=422, detail="Mode is not valid for Sentinel-2")
+    if asset.source_name == "Sentinel-1" and mode not in radar:
+        raise HTTPException(status_code=422, detail="Mode is not valid for Sentinel-1")
+    source_path = Path(asset.source_path)
+    bands: list[int]
+    color_scheme: str | None
+    if asset.source_name == "Sentinel-2":
+        bands, color_scheme = optical[mode]
+    else:
+        radar_filename, color_scheme = radar[mode]
+        source_path = source_path.parent / radar_filename
+        bands = [1]
+    if not source_path.exists():
+        raise HTTPException(status_code=404, detail="Source raster is unavailable")
+    preview_path = settings.imagery_dir / "historical-previews" / f"{image_id}-{mode}.png"
+    if not preview_path.exists():
+        create_preview(
+            source_path,
+            preview_path,
+            requested_bands=bands,
+            max_dimension=1000,
+            color_scheme=color_scheme,
+        )
+    return FileResponse(
+        preview_path,
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@router.get("/plots/{plot_id}/imagery-timeline")
+def get_imagery_timeline(
+    plot_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    _require_plot(db, plot_id)
+    run = _require_historical_run(db, plot_id)
+    states = {
+        item.imagery_asset_id: {
+            "state": item.state,
+            "confidence": item.confidence,
+            "explanation": item.explanation,
+        }
+        for item in db.scalars(
+            select(CropStateObservation).where(
+                CropStateObservation.temporal_analysis_run_id == run.id
+            )
+        )
+    }
+    timeline = timeline_payload(db, plot_id)
+    for item in timeline:
+        item["derived_field_state"] = states.get(item["image_id"])
+        item["preview_url"] = f"/api/v1/imagery/{item['image_id']}/preview.png"
+        item["public_rainfall_context"] = {
+            "status": "CONTEXT_NOT_MATCHED_TO_SCENE",
+            "provenance": "UNKNOWN",
+            "causal_claim": None,
+        }
+    return envelope(
+        request,
+        {
+            "plot_id": plot_id,
+            "analysis_run_id": run.id,
+            "raw_observations": timeline,
+            "smoothing": run.parameters,
+            "temporal_gaps": run.result_summary.get("temporal_gaps", []),
+        },
+    )
+
+
+@router.post("/plots/{plot_id}/temporal-analysis")
+def run_temporal_analysis(
+    plot_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    plot = _require_plot(db, plot_id)
+    result = import_historical_archive(
+        db, plot, settings.historical_output_dir, force_analysis=True
+    )
+    return envelope(request, result)
+
+
+@router.get("/plots/{plot_id}/crop-cycles")
+def get_historical_crop_cycles(
+    plot_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    run = _require_historical_run(db, plot_id)
+    rows = list(
+        db.scalars(
+            select(HistoricalCropSeason)
+            .where(HistoricalCropSeason.temporal_analysis_run_id == run.id)
+            .order_by(HistoricalCropSeason.probable_start_date)
+        )
+    )
+    return envelope(
+        request,
+        [
+            {
+                "season_id": row.id,
+                "probable_start_date": row.probable_start_date,
+                "probable_planting_window": [
+                    row.probable_planting_window_start,
+                    row.probable_planting_window_end,
+                ],
+                "probable_peak_date": row.probable_peak_date,
+                "probable_harvest_window": [
+                    row.probable_harvest_window_start,
+                    row.probable_harvest_window_end,
+                ],
+                "estimated_crop_duration_days": row.estimated_crop_duration_days,
+                "estimated_cultivated_area_rai": row.estimated_cultivated_area_rai,
+                "estimated_harvested_area_rai": row.estimated_harvested_area_rai,
+                "number_of_supporting_images": row.number_of_supporting_images,
+                "confidence": row.confidence,
+                "evidence_image_ids": row.evidence_image_ids,
+                "limitations": row.limitations,
+                "provenance": "ESTIMATED",
+                "algorithm_version": row.algorithm_version,
+            }
+            for row in rows
+        ],
+    )
+
+
+@router.get("/plots/{plot_id}/historical-baseline")
+def get_historical_baseline(
+    plot_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    _require_plot(db, plot_id)
+    payload = historical_baseline_payload(db, plot_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Historical baseline is not available")
+    return envelope(request, payload)
+
+
+def _zone_dict(row: RecurringZone) -> dict[str, Any]:
+    return {
+        "zone_id": row.id,
+        "plot_id": row.plot_id,
+        "geometry": row.geometry_json,
+        "zone_type": row.zone_type,
+        "number_of_occurrences": row.number_of_occurrences,
+        "number_of_usable_images": row.number_of_usable_images,
+        "years_detected": row.years_detected,
+        "season_ids": row.season_ids,
+        "confidence": row.confidence,
+        "supporting_images": row.supporting_images,
+        "recommended_field_check": row.recommended_field_check,
+        "limitations": row.limitations,
+        "provenance": "DERIVED",
+    }
+
+
+@router.get("/plots/{plot_id}/recurring-zones")
+def get_recurring_zones(
+    plot_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    run = _require_historical_run(db, plot_id)
+    rows = list(
+        db.scalars(
+            select(RecurringZone).where(RecurringZone.temporal_analysis_run_id == run.id)
+        )
+    )
+    return envelope(request, [_zone_dict(row) for row in rows])
+
+
+@router.get("/plots/{plot_id}/baseline-evidence")
+def get_baseline_evidence(
+    plot_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    run = _require_historical_run(db, plot_id)
+    rows = list(
+        db.scalars(
+            select(BaselineEvidenceItem)
+            .where(BaselineEvidenceItem.temporal_analysis_run_id == run.id)
+            .order_by(BaselineEvidenceItem.claim_key)
+        )
+    )
+    return envelope(
+        request,
+        [
+            {
+                "item_id": row.id,
+                "claim_key": row.claim_key,
+                "claim_label": row.claim_label,
+                "support_level": row.support_level,
+                "provenance": row.provenance,
+                "conclusion": row.conclusion,
+                "evidence_image_ids": row.evidence_image_ids,
+                "limitations": row.limitations,
+            }
+            for row in rows
+        ],
+    )
+
+
+@router.post("/plots/{plot_id}/sensor-location-analysis")
+def run_sensor_location_analysis(
+    plot_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    plot = _require_plot(db, plot_id)
+    result = import_historical_archive(
+        db, plot, settings.historical_output_dir, force_analysis=True
+    )
+    proposals = list(
+        db.scalars(
+            select(SensorLocationProposal).where(
+                SensorLocationProposal.temporal_analysis_run_id == result["analysis_run_id"]
+            )
+        )
+    )
+    return envelope(
+        request,
+        {
+            "analysis_run_id": result["analysis_run_id"],
+            "proposal_count": len(proposals),
+            "status": "PROPOSED",
+            "field_verification_status": "NOT_FIELD_VERIFIED",
+        },
+    )
+
+
+def _proposal_dict(row: SensorLocationProposal) -> dict[str, Any]:
+    return {
+        "proposal_id": row.id,
+        "plot_id": row.plot_id,
+        "sensor_type": row.sensor_type,
+        "geometry": {
+            "type": "Point",
+            "coordinates": [row.longitude, row.latitude],
+        },
+        "latitude": row.latitude,
+        "longitude": row.longitude,
+        "status": row.status,
+        "field_verification_status": row.field_verification_status,
+        "rationale": row.rationale,
+        "confidence": row.confidence,
+        "supporting_zone_ids": row.supporting_zone_ids,
+        "assumptions": row.assumptions,
+        "provenance": "DERIVED",
+    }
+
+
+@router.get("/plots/{plot_id}/sensor-location-proposals")
+def get_sensor_location_proposals(
+    plot_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    run = _require_historical_run(db, plot_id)
+    rows = list(
+        db.scalars(
+            select(SensorLocationProposal).where(
+                SensorLocationProposal.temporal_analysis_run_id == run.id
+            )
+        )
+    )
+    return envelope(request, [_proposal_dict(row) for row in rows])
+
+
+@router.get("/analysis-runs/{run_id}")
+def get_analysis_run(
+    run_id: str, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    run = db.get(TemporalAnalysisRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Analysis run not found")
+    return envelope(
+        request,
+        {
+            "run_id": run.id,
+            "plot_id": run.plot_id,
+            "algorithm_version": run.algorithm_version,
+            "status": run.status,
+            "period": [run.period_start, run.period_end],
+            "image_count": run.image_count,
+            "usable_image_count": run.usable_image_count,
+            "parameters": run.parameters,
+            "quality_scores": run.quality_scores,
+            "result_summary": run.result_summary,
+            "started_at": run.started_at,
+            "completed_at": run.completed_at,
+        },
+    )
+
+
+@router.get("/algorithm-versions")
+def get_algorithm_versions(
+    request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    rows = list(
+        db.scalars(select(AlgorithmVersion).order_by(AlgorithmVersion.algorithm_name))
+    )
+    return envelope(
+        request,
+        [
+            {
+                "algorithm_id": row.id,
+                "algorithm_name": row.algorithm_name,
+                "version": row.version,
+                "description": row.description,
+                "parameters": row.parameters,
+                "source_type": row.source_type,
+                "active": row.active,
+                "created_at": row.created_at,
+            }
+            for row in rows
+        ],
+    )
+
+
+def _export_metadata(run: TemporalAnalysisRun) -> dict[str, Any]:
+    return {
+        "plot_id": run.plot_id,
+        "analysis_period": [run.period_start, run.period_end],
+        "image_count": run.image_count,
+        "source_list": ["Sentinel-2", "Sentinel-1"],
+        "algorithm_versions": [run.algorithm_version],
+        "processing_date": run.completed_at,
+        "provenance": "DERIVED",
+        "confidence": (
+            "HIGH"
+            if run.quality_scores.get("historical_baseline_completeness", 0) >= 80
+            else "MODERATE"
+        ),
+        "limitations": HISTORICAL_DISCLAIMERS,
+        "synthetic_boundary_warning": DEMO_BOUNDARY_WARNING,
+        "demo_disclaimer": "Historical baseline analytical demonstration; no verified AWD or carbon-credit claim.",
+    }
+
+
+@router.get("/plots/{plot_id}/exports/timeline.csv")
+def export_timeline_csv(
+    plot_id: str, db: Session = Depends(get_db)
+) -> StreamingResponse:
+    run = _require_historical_run(db, plot_id)
+    metadata = _export_metadata(run)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    for key, value in jsonable_encoder(metadata).items():
+        writer.writerow([f"# {key}", jsonable_encoder(value)])
+    fields = [
+        "image_id",
+        "date",
+        "sensor",
+        "status",
+        "quality",
+        "plot_coverage_percent",
+        "vegetation_score",
+        "smoothed_vegetation_score",
+        "water_candidate_fraction",
+        "cultivated_area_estimate_rai",
+        "possible_harvested_area_rai",
+        "confidence",
+        "provenance",
+    ]
+    writer.writerow(fields)
+    for item in timeline_payload(db, plot_id):
+        writer.writerow([item.get(field) for field in fields])
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{plot_id}-historical-timeline.csv"'},
+    )
+
+
+@router.get("/plots/{plot_id}/exports/historical-baseline.json")
+def export_historical_baseline_json(
+    plot_id: str, db: Session = Depends(get_db)
+) -> JSONResponse:
+    run = _require_historical_run(db, plot_id)
+    payload = historical_baseline_payload(db, plot_id)
+    return JSONResponse(
+        jsonable_encoder({"metadata": _export_metadata(run), "historical_baseline": payload})
+    )
+
+
+@router.get("/plots/{plot_id}/exports/recurring-zones.geojson")
+def export_recurring_zones_geojson(
+    plot_id: str, db: Session = Depends(get_db)
+) -> JSONResponse:
+    run = _require_historical_run(db, plot_id)
+    rows = list(
+        db.scalars(
+            select(RecurringZone).where(RecurringZone.temporal_analysis_run_id == run.id)
+        )
+    )
+    return JSONResponse(
+        jsonable_encoder(
+            {
+                "type": "FeatureCollection",
+                "metadata": _export_metadata(run),
+                "features": [
+                    {
+                        "type": "Feature",
+                        "id": row.id,
+                        "geometry": row.geometry_json,
+                        "properties": {
+                            key: value
+                            for key, value in _zone_dict(row).items()
+                            if key != "geometry"
+                        },
+                    }
+                    for row in rows
+                ],
+            }
+        )
+    )
+
+
+@router.get("/plots/{plot_id}/exports/sensor-proposals.geojson")
+def export_sensor_proposals_geojson(
+    plot_id: str, db: Session = Depends(get_db)
+) -> JSONResponse:
+    run = _require_historical_run(db, plot_id)
+    rows = list(
+        db.scalars(
+            select(SensorLocationProposal).where(
+                SensorLocationProposal.temporal_analysis_run_id == run.id
+            )
+        )
+    )
+    return JSONResponse(
+        jsonable_encoder(
+            {
+                "type": "FeatureCollection",
+                "metadata": _export_metadata(run),
+                "features": [
+                    {
+                        "type": "Feature",
+                        "id": row.id,
+                        "geometry": _proposal_dict(row)["geometry"],
+                        "properties": {
+                            key: value
+                            for key, value in _proposal_dict(row).items()
+                            if key != "geometry"
+                        },
+                    }
+                    for row in rows
+                ],
+            }
+        )
+    )
+
+
+@router.get(
+    "/plots/{plot_id}/exports/executive-report.html",
+    response_class=HTMLResponse,
+)
+def export_historical_executive_report(
+    plot_id: str, db: Session = Depends(get_db)
+) -> str:
+    run = _require_historical_run(db, plot_id)
+    baseline = historical_baseline_payload(db, plot_id) or {}
+    metadata = _export_metadata(run)
+    year_rows = "".join(
+        "<tr>"
+        f"<td>{year['year']}</td><td>{year['probable_crop_cycles']}</td>"
+        f"<td>{year['cultivated_area_range_rai']}</td>"
+        f"<td>{year['harvested_area_range_rai']}</td><td>{year['confidence']}</td>"
+        "</tr>"
+        for year in baseline.get("years", [])
+    )
+    limitation_rows = "".join(f"<li>{item}</li>" for item in HISTORICAL_DISCLAIMERS)
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+    <title>Historical Baseline — {plot_id}</title><style>
+    body{{font-family:system-ui;max-width:1050px;margin:32px auto;color:#173328;line-height:1.5}}
+    h1,h2{{color:#115b3b}}.warning{{background:#fff4d8;border-left:5px solid #d99c22;padding:14px}}
+    .kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}}.kpis div{{padding:14px;background:#eef5f1}}
+    table{{width:100%;border-collapse:collapse}}th,td{{padding:9px;border-bottom:1px solid #ddd;text-align:left}}
+    @media print{{button{{display:none}}body{{margin:0}}}}</style></head><body>
+    <button onclick="window.print()">Print / Save as PDF</button>
+    <h1>Historical Imagery Baseline</h1><p>Plot: {plot_id} · Period: {metadata['analysis_period']}</p>
+    <div class="warning"><strong>Analytical demonstration</strong><p>{DEMO_BOUNDARY_WARNING}</p></div>
+    <div class="kpis"><div><b>Images</b><br>{run.image_count}</div>
+    <div><b>Usable images</b><br>{run.usable_image_count}</div>
+    <div><b>Probable cycles</b><br>{baseline.get('probable_crop_cycles', 0)}</div>
+    <div><b>Completeness</b><br>{run.quality_scores.get('historical_baseline_completeness')}%</div></div>
+    <h2>Three-year comparison</h2><table><thead><tr><th>Year</th><th>Probable cycles</th>
+    <th>Cultivated area range (rai)</th><th>Harvest candidate range (rai)</th><th>Confidence</th></tr></thead>
+    <tbody>{year_rows}</tbody></table><h2>Required limitations</h2><ul>{limitation_rows}</ul>
+    <p>Algorithm: {run.algorithm_version} · Processed: {run.completed_at}</p></body></html>"""

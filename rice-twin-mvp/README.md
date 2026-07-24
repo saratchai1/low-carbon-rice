@@ -10,6 +10,9 @@ public-data adapters, Sentinel imagery, field evidence และ Carbon MRV read
 หน้าใช้งานหลักอยู่ที่ `http://localhost:8000` และโหมดนำเสนออยู่ที่
 `http://localhost:8000/presentation` ส่วน UI รุ่นก่อนยังเปิดได้ที่ `/legacy`
 
+Historical Baseline Explorer ที่ประมวลผลคลัง Sentinel‑2/Sentinel‑1
+ย้อนหลังจริงอยู่ที่ `http://localhost:8000/historical`
+
 ระบบสร้างข้อมูลสาธิตแบบ deterministic จำนวน 1 แปลงหลัก + 5 แปลงใกล้เคียง,
 อุปกรณ์ 12 ตัว, observations 30 วัน, public snapshots, evidence, alerts และ
 สถานการณ์ end-to-end 10 แบบ ค่าทุกกลุ่มติดป้าย `LIVE`, `SIMULATED`, `PUBLIC`,
@@ -23,6 +26,11 @@ public-data adapters, Sentinel imagery, field evidence และ Carbon MRV read
 - [Satellite Imagery Guide](docs/SATELLITE_IMAGERY_GUIDE.md)
 - [Carbon MRV Limitations](docs/CARBON_MRV_LIMITATIONS.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Historical Imagery Guide](docs/HISTORICAL_IMAGERY_GUIDE.md)
+- [Imagery Analysis Methods](docs/IMAGERY_ANALYSIS_METHODS.md)
+- [Executive Imagery Demo Guide](docs/EXECUTIVE_IMAGERY_DEMO_GUIDE.md)
+- [Historical Baseline Limitations](docs/BASELINE_LIMITATIONS.md)
+- [Sensor Placement Method](docs/SENSOR_PLACEMENT_METHOD.md)
 
 ## เริ่มระบบ
 

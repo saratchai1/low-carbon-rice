@@ -20,6 +20,7 @@ services:
       DATABASE_URL: postgresql+psycopg2://rice_twin:rice_twin@db:5432/rice_twin
       IMAGERY_DIR: /data/imagery
       SATELLITE_OUTPUT_DIR: /satellite-output
+      HISTORICAL_OUTPUT_DIR: /historical-output
       MAX_UPLOAD_MB: 512
     depends_on:
       db:
@@ -30,7 +31,9 @@ services:
       - ./data/imagery:/data/imagery
       - ./backend/app:/app/app
       - ./backend/tests:/app/tests:ro
+      - ./backend/migrations:/app/migrations:ro
       - ../output:/satellite-output:ro
+      - ../output_3yr_4per_month:/historical-output:ro
     restart: unless-stopped
 
 volumes:

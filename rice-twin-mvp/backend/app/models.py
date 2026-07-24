@@ -445,3 +445,296 @@ class ScenarioRun(Base):
     outcome: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+# Historical imagery entities intentionally use explicit, versioned rows instead
+# of extending the legacy ``imagery`` upload table.  This keeps analytical
+# outputs append-only and preserves the provenance of every baseline run.
+class ImageryAsset(Base):
+    __tablename__ = "imagery_assets"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    source_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(30), nullable=False, default="OBSERVED")
+    acquisition_datetime: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_path: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    mime_type: Mapped[str] = mapped_column(String(120), default="image/tiff")
+    crs: Mapped[str | None] = mapped_column(String(120))
+    resolution_x: Mapped[float | None] = mapped_column(Float)
+    resolution_y: Mapped[float | None] = mapped_column(Float)
+    width: Mapped[int | None] = mapped_column(Integer)
+    height: Mapped[int | None] = mapped_column(Integer)
+    band_count: Mapped[int | None] = mapped_column(Integer)
+    band_names: Mapped[list] = mapped_column(JSONB, default=list)
+    cloud_cover_percent: Mapped[float | None] = mapped_column(Float)
+    quality_score: Mapped[float | None] = mapped_column(Float)
+    bounds: Mapped[list] = mapped_column(JSONB, default=list)
+    footprint: Mapped[dict] = mapped_column(JSONB, default=dict)
+    plot_intersection_percent: Mapped[float] = mapped_column(Float, default=0)
+    sha256: Mapped[str | None] = mapped_column(String(64), index=True)
+    license_status: Mapped[str] = mapped_column(String(80), default="USER_PROVIDED")
+    processing_status: Mapped[str] = mapped_column(String(30), default="UPLOADED")
+    processing_error: Mapped[str | None] = mapped_column(Text)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=True)
+    metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class ImageryBandMapping(Base):
+    __tablename__ = "imagery_band_mappings"
+    __table_args__ = (UniqueConstraint("imagery_asset_id", "version"),)
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    imagery_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("imagery_assets.id", ondelete="CASCADE"), index=True
+    )
+    version: Mapped[str] = mapped_column(String(40), nullable=False)
+    mapping: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    confirmed_by: Mapped[str] = mapped_column(String(120), default="archive_metadata")
+    provenance: Mapped[str] = mapped_column(String(30), default="OBSERVED")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ImageryProcessingRun(Base):
+    __tablename__ = "imagery_processing_runs"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    imagery_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("imagery_assets.id", ondelete="CASCADE"), index=True
+    )
+    algorithm_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    parameters: Mapped[dict] = mapped_column(JSONB, default=dict)
+    processing_log: Mapped[list] = mapped_column(JSONB, default=list)
+    output_metadata: Mapped[dict] = mapped_column(JSONB, default=dict)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class ImageryQualityResult(Base):
+    __tablename__ = "imagery_quality_results"
+    __table_args__ = (UniqueConstraint("imagery_asset_id", "algorithm_version"),)
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    imagery_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("imagery_assets.id", ondelete="CASCADE"), index=True
+    )
+    algorithm_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    image_quality_score: Mapped[float] = mapped_column(Float, nullable=False)
+    spatial_coverage_score: Mapped[float] = mapped_column(Float, nullable=False)
+    valid_pixel_fraction: Mapped[float] = mapped_column(Float, nullable=False)
+    cloud_or_quality_status: Mapped[str] = mapped_column(String(80), nullable=False)
+    usable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    components: Mapped[dict] = mapped_column(JSONB, default=dict)
+    limitations: Mapped[list] = mapped_column(JSONB, default=list)
+    provenance: Mapped[str] = mapped_column(String(30), default="DERIVED")
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ImageryPlotMetric(Base):
+    __tablename__ = "imagery_plot_metrics"
+    __table_args__ = (
+        UniqueConstraint("imagery_asset_id", "plot_id", "algorithm_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    imagery_asset_id: Mapped[str] = mapped_column(
+        ForeignKey("imagery_assets.id", ondelete="CASCADE"), index=True
+    )
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    acquisition_datetime: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+    sensor: Mapped[str] = mapped_column(String(40), index=True)
+    algorithm_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    vegetation_score: Mapped[float | None] = mapped_column(Float)
+    water_candidate_fraction: Mapped[float | None] = mapped_column(Float)
+    wet_soil_fraction: Mapped[float | None] = mapped_column(Float)
+    bare_soil_fraction: Mapped[float | None] = mapped_column(Float)
+    dense_vegetation_fraction: Mapped[float | None] = mapped_column(Float)
+    uncertain_fraction: Mapped[float] = mapped_column(Float, default=0)
+    cultivated_area_estimate_rai: Mapped[float | None] = mapped_column(Float)
+    possible_harvested_area_rai: Mapped[float | None] = mapped_column(Float)
+    uniformity_score: Mapped[float | None] = mapped_column(Float)
+    image_quality_score: Mapped[float] = mapped_column(Float)
+    usable_plot_coverage: Mapped[float] = mapped_column(Float)
+    raw_metrics: Mapped[dict] = mapped_column(JSONB, default=dict)
+    provenance: Mapped[str] = mapped_column(String(30), default="DERIVED")
+    confidence: Mapped[str] = mapped_column(String(30), default="MODERATE")
+    limitations: Mapped[list] = mapped_column(JSONB, default=list)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class HistoricalCropSeason(Base):
+    __tablename__ = "historical_crop_seasons"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    temporal_analysis_run_id: Mapped[str] = mapped_column(
+        ForeignKey("temporal_analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    probable_start_date: Mapped[datetime | None] = mapped_column(Date)
+    probable_planting_window_start: Mapped[datetime | None] = mapped_column(Date)
+    probable_planting_window_end: Mapped[datetime | None] = mapped_column(Date)
+    probable_peak_date: Mapped[datetime | None] = mapped_column(Date)
+    probable_harvest_window_start: Mapped[datetime | None] = mapped_column(Date)
+    probable_harvest_window_end: Mapped[datetime | None] = mapped_column(Date)
+    estimated_crop_duration_days: Mapped[int | None] = mapped_column(Integer)
+    estimated_cultivated_area_rai: Mapped[float | None] = mapped_column(Float)
+    estimated_harvested_area_rai: Mapped[float | None] = mapped_column(Float)
+    number_of_supporting_images: Mapped[int] = mapped_column(Integer)
+    confidence: Mapped[str] = mapped_column(String(30))
+    evidence_image_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    limitations: Mapped[list] = mapped_column(JSONB, default=list)
+    algorithm_version: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class CropStateObservation(Base):
+    __tablename__ = "crop_state_observations"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    temporal_analysis_run_id: Mapped[str] = mapped_column(
+        ForeignKey("temporal_analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    imagery_asset_id: Mapped[str] = mapped_column(ForeignKey("imagery_assets.id"), index=True)
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    observed_on: Mapped[datetime] = mapped_column(Date, index=True)
+    state: Mapped[str] = mapped_column(String(60), nullable=False)
+    confidence: Mapped[str] = mapped_column(String(30), nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    provenance: Mapped[str] = mapped_column(String(30), default="ESTIMATED")
+
+
+class SpatialAnalysisGrid(Base):
+    __tablename__ = "spatial_analysis_grids"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    temporal_analysis_run_id: Mapped[str] = mapped_column(
+        ForeignKey("temporal_analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    resolution_m: Mapped[float] = mapped_column(Float, nullable=False)
+    crs: Mapped[str] = mapped_column(String(120), nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    algorithm_version: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class RecurringZone(Base):
+    __tablename__ = "recurring_zones"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    temporal_analysis_run_id: Mapped[str] = mapped_column(
+        ForeignKey("temporal_analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    zone_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    geometry_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    number_of_occurrences: Mapped[int] = mapped_column(Integer, nullable=False)
+    number_of_usable_images: Mapped[int] = mapped_column(Integer, nullable=False)
+    years_detected: Mapped[list] = mapped_column(JSONB, default=list)
+    season_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    confidence: Mapped[str] = mapped_column(String(30), nullable=False)
+    supporting_images: Mapped[list] = mapped_column(JSONB, default=list)
+    recommended_field_check: Mapped[str] = mapped_column(Text, nullable=False)
+    limitations: Mapped[list] = mapped_column(JSONB, default=list)
+
+
+class BaselineEvidenceItem(Base):
+    __tablename__ = "baseline_evidence_items"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    temporal_analysis_run_id: Mapped[str] = mapped_column(
+        ForeignKey("temporal_analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    claim_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    claim_label: Mapped[str] = mapped_column(String(180), nullable=False)
+    support_level: Mapped[str] = mapped_column(String(30), nullable=False)
+    provenance: Mapped[str] = mapped_column(String(30), nullable=False)
+    conclusion: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_image_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    limitations: Mapped[list] = mapped_column(JSONB, default=list)
+
+
+class SensorLocationProposal(Base):
+    __tablename__ = "sensor_location_proposals"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    temporal_analysis_run_id: Mapped[str] = mapped_column(
+        ForeignKey("temporal_analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    sensor_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    latitude: Mapped[float] = mapped_column(Float, nullable=False)
+    longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="PROPOSED")
+    field_verification_status: Mapped[str] = mapped_column(
+        String(40), default="NOT_FIELD_VERIFIED"
+    )
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    confidence: Mapped[str] = mapped_column(String(30), nullable=False)
+    supporting_zone_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    assumptions: Mapped[list] = mapped_column(JSONB, default=list)
+
+
+class TemporalAnalysisRun(Base):
+    __tablename__ = "temporal_analysis_runs"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    plot_id: Mapped[str] = mapped_column(ForeignKey("plots.id"), index=True)
+    algorithm_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    period_start: Mapped[datetime | None] = mapped_column(Date)
+    period_end: Mapped[datetime | None] = mapped_column(Date)
+    image_count: Mapped[int] = mapped_column(Integer, default=0)
+    usable_image_count: Mapped[int] = mapped_column(Integer, default=0)
+    parameters: Mapped[dict] = mapped_column(JSONB, default=dict)
+    quality_scores: Mapped[dict] = mapped_column(JSONB, default=dict)
+    result_summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AlgorithmVersion(Base):
+    __tablename__ = "algorithm_versions"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    algorithm_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    version: Mapped[str] = mapped_column(String(40), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    parameters: Mapped[dict] = mapped_column(JSONB, default=dict)
+    source_type: Mapped[str] = mapped_column(String(30), default="REFERENCE")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AnalysisAssumption(Base):
+    __tablename__ = "analysis_assumptions"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    temporal_analysis_run_id: Mapped[str] = mapped_column(
+        ForeignKey("temporal_analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    assumption_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    provenance: Mapped[str] = mapped_column(String(30), default="ASSUMED")
+
+
+class AnalysisLimitation(Base):
+    __tablename__ = "analysis_limitations"
+
+    id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    temporal_analysis_run_id: Mapped[str] = mapped_column(
+        ForeignKey("temporal_analysis_runs.id", ondelete="CASCADE"), index=True
+    )
+    limitation_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String(30), default="MATERIAL")

@@ -2,52 +2,91 @@
 <html lang="th">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rice Twin — Executive Presentation</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Rice Twin — Historical Baseline Story</title>
   <link rel="stylesheet" href="/static/presentation.css">
+  <link rel="stylesheet" href="/static/presentation-historical.css">
 </head>
 <body>
   <main id="deck">
     <section class="slide active dark">
-      <p class="kicker">ULTIMATE LOW-CARBON RICE DIGITAL TWIN</p>
-      <h1>จากข้อมูลกระจัดกระจาย<br>สู่การตัดสินใจที่ตรวจสอบได้</h1>
-      <p class="lead">Executive demonstration · 24 July 2026</p>
-      <div class="hero-metrics"><span><b>6</b> แปลงสาธิต</span><span><b>12</b> อุปกรณ์ IoT</span><span><b>10</b> สถานการณ์ end-to-end</span></div>
+      <p class="kicker">01 · DEMONSTRATION PLOT</p>
+      <h1>มองย้อนหลังให้เข้าใจแปลง<br>ก่อนออกแบบโครงการคาร์บอนต่ำ</h1>
+      <p class="lead">DEMO-PLOT-001 · synthetic demonstration boundary · not a surveyed or legal boundary</p>
+      <div class="hero-metrics"><span><b>10 m</b> analysis grid</span><span><b>2</b> Sentinel sensors</span><span><b>0</b> field installations</span></div>
     </section>
     <section class="slide">
-      <p class="kicker">THE OPERATING QUESTION</p>
-      <h2>เมื่อไรควรให้น้ำ และเราพิสูจน์เหตุผลนั้นได้อย่างไร?</h2>
-      <div class="three"><article><b>01</b><h3>Observe</h3><p>ระดับน้ำ ความชื้น ฝน พลังงาน ดาวเทียม และงานภาคสนาม</p></article><article><b>02</b><h3>Decide</h3><p>กฎ AWD ที่แสดง threshold, input, เหตุผล และ confidence</p></article><article><b>03</b><h3>Evidence</h3><p>เก็บ provenance, เวลา, hash, ผู้บันทึก และผลทบทวน</p></article></div>
+      <p class="kicker">02 · APPROXIMATELY WEEKLY · THREE YEARS</p>
+      <h2>คลังภาพจริงที่ตรวจสอบย้อนกลับได้</h2>
+      <div id="historyKpis" class="hero-metrics large ink"><span><small>Historical period</small><b>—</b></span><span><small>Inventory</small><b>—</b></span><span><small>Usable</small><b>—</b></span></div>
+      <p class="lead center">ทุก scene มี acquisition date, CRS, 10 m resolution, plot coverage, SHA‑256 และ processing status</p>
     </section>
     <section class="slide dark">
-      <p class="kicker">LIVE DEMO · SCENARIO 2</p>
+      <p class="kicker">03 · HISTORICAL REPLAY</p>
+      <h2 id="historySceneTitle">ภาพและกราฟเดินตามเวลาเดียวกัน</h2>
+      <div class="replay-stage"><img id="historyImage" alt="Historical Sentinel preview"><div id="historySceneMeta"></div></div>
+      <button id="runHistory">เล่นย้อนหลัง</button>
+    </section>
+    <section class="slide">
+      <p class="kicker">04 · EXPLAINABLE CROP-CYCLE DETECTION</p>
+      <h2>ใช้ date window ไม่สร้างความแม่นยำเทียม</h2>
+      <div id="presentationCycles" class="cycle-strip"></div>
+      <p class="lead center">Planting, peak และ harvest เป็น ESTIMATED จนกว่าจะยืนยันด้วยบันทึกภาคสนาม</p>
+    </section>
+    <section class="slide">
+      <p class="kicker">05 · CULTIVATED & HARVEST CANDIDATES</p>
+      <h2>พื้นที่ถูกแสดงเป็นช่วง ไม่ใช่ข้อเท็จจริงภาคสนาม</h2>
+      <div id="areaYears" class="three"></div>
+    </section>
+    <section class="slide dark">
+      <p class="kicker">06 · RECURRING SPATIAL SIGNALS</p>
+      <h2>พื้นที่เปียกซ้ำและการเติบโตต่ำซ้ำ<br>คือจุดที่ควรลงไปตรวจ</h2>
+      <div id="zoneStory" class="hero-metrics large"></div>
+      <p class="lead center">DERIVED at native 10 m · ไม่ oversample · ไม่อ้างว่าเป็นสาเหตุหรือวัดระดับน้ำ</p>
+    </section>
+    <section class="slide">
+      <p class="kicker">07 · WHAT IMAGERY CAN AND CANNOT PROVE</p>
+      <h2>หลักฐานที่ดี เริ่มจากการรู้ขอบเขตของมัน</h2>
+      <div class="evidence-story"><div><b>SUPPORTED</b><p>cultivated-area candidates, vegetation trajectory, wetness context, probable date windows</p></div><div><b>NOT SUPPORTED</b><p>AWD compliance, water depth, fertilizer, straw management, yield, GHG emissions</p></div></div>
+    </section>
+    <section class="slide">
+      <p class="kicker">08 · SENSOR NETWORK DESIGN</p>
+      <h2>ใช้ภาพย้อนหลังตั้งคำถามให้ตำแหน่งเซนเซอร์</h2>
+      <div id="sensorStory" class="sensor-story"></div>
+      <p class="lead center">ทุกตำแหน่งเป็น PROPOSED · NOT FIELD VERIFIED</p>
+    </section>
+    <section class="slide">
+      <p class="kicker">09 · BASELINE TWIN → PROJECT TWIN</p>
+      <h2>เปลี่ยนช่องว่างหลักฐานให้เป็นแผน monitoring</h2>
+      <div class="compare"><article><b>HISTORICAL BASELINE</b><p>ภาพประมาณรายสัปดาห์ · field evidence จำกัด · water management UNKNOWN · MRV completeness ต่ำกว่า</p></article><span>→</span><article><b>PROPOSED PROJECT</b><p>AWD tube + water level · rain · pump/flow/energy · field activities · evidence timeline</p></article></div>
+    </section>
+    <section class="slide dark">
+      <p class="kicker">10 · SIMULATED FUTURE AWD SEASON</p>
       <h2>รอฝน 12 ชั่วโมง ก่อนเดินเครื่องสูบน้ำ</h2>
-      <div id="scenarioMetrics" class="hero-metrics large"><span><small>ระดับน้ำ</small><b id="pWater">−12.0</b> cm</span><span><small>ฝนพยากรณ์</small><b>22.0</b> mm</span><span><small>Recommendation</small><b id="pDecision">WAIT</b></span></div>
+      <div class="hero-metrics large"><span><small>ระดับน้ำ</small><b id="pWater">−12.0</b> cm</span><span><small>ฝนพยากรณ์</small><b>22.0</b> mm</span><span><small>Recommendation</small><b id="pDecision">WAIT</b></span></div>
       <div class="scenario-track"><i id="scenarioBar"></i></div>
-      <p id="scenarioNarrative" class="lead">กฎแนะนำให้รอ เพราะความชื้นดินยังยอมรับได้และมีฝนเหนือ threshold</p>
+      <p id="scenarioNarrative" class="lead">SIMULATED · กฎแนะนำให้รอ เพราะความชื้นดินยังยอมรับได้และมีฝนเหนือ threshold</p>
       <button id="runScenario">เล่นสถานการณ์</button>
     </section>
     <section class="slide">
-      <p class="kicker">ASSURANCE BY DESIGN</p>
-      <h2>แยก “ข้อเท็จจริง” ออกจาก “ค่าที่อนุมาน”</h2>
-      <div class="provenance-grid"><span class="live">LIVE</span><span class="sim">SIMULATED</span><span class="public">PUBLIC</span><span class="manual">MANUAL</span><span class="derived">DERIVED</span><span class="reference">REFERENCE</span></div>
-      <p class="lead center">ทุก KPI ตัวแปร และหลักฐานมีที่มาปรากฏใน UI และรายงาน</p>
+      <p class="kicker">11 · FIELD IOT CLOSES EVIDENCE GAPS</p>
+      <h2>ภาพบอก “ควรตรวจตรงไหน”<br>IoT บอก “เกิดอะไรขึ้นเมื่อไร”</h2>
+      <div class="three"><article><b>WATER</b><h3>Water depth</h3><p>ท่อ AWD + level sensor ยืนยันระดับและ dry period</p></article><article><b>OPERATIONS</b><h3>Pump & flow</h3><p>ยืนยันเวลาให้น้ำ ปริมาณ และพลังงาน</p></article><article><b>FIELD</b><h3>Activities</h3><p>fertilizer, straw, yield และภาพ geotagged</p></article></div>
     </section>
     <section class="slide">
-      <p class="kicker">CARBON MRV READINESS</p>
+      <p class="kicker">12 · T-VER READINESS</p>
       <h2>ระบบเตรียมข้อมูลให้พร้อมตรวจ<br>แต่ไม่กล่าวอ้างคาร์บอนเครดิต</h2>
-      <div class="warning"><strong>METHODOLOGY NOT CONFIGURED</strong><p>ยังไม่มี methodology, emission factor หรือผลการทวนสอบที่ได้รับอนุมัติ จึงไม่คำนวณ eligible amount, verified amount หรือ issued credits</p></div>
-      <p class="lead center">เป้าหมายของเดโมคือ traceability และ readiness — ไม่ใช่การออกเครดิต</p>
+      <div class="warning"><strong>METHODOLOGY NOT CONFIGURED</strong><p>ยังไม่มี methodology, emission factor, field activity records หรือผลการทวนสอบที่ได้รับอนุมัติ จึงไม่คำนวณ eligible, verified หรือ issued credits</p></div>
     </section>
     <section class="slide dark">
-      <p class="kicker">DECISION-READY PLATFORM</p>
-      <h2>พร้อมสาธิตการทำงานครบวงจร</h2>
-      <div class="checklist"><span>✓ Executive command center</span><span>✓ IoT registry & simulator</span><span>✓ Public-data adapters</span><span>✓ Sentinel rice-band viewer</span><span>✓ Offline-first field capture</span><span>✓ Verifier evidence package</span></div>
-      <a href="/" class="open-app">เปิดระบบปฏิบัติการ</a>
+      <p class="kicker">13 · DECISION-READY DEMONSTRATION</p>
+      <h2>จาก 264 scene ที่ประมวลผลได้<br>สู่ baseline ที่ตรวจสอบที่มาได้</h2>
+      <div class="checklist"><span>✓ Actual GeoTIFF pixel analysis</span><span>✓ Sentinel‑2 + Sentinel‑1 replay</span><span>✓ Explainable crop-cycle windows</span><span>✓ Evidence support matrix</span><span>✓ Recurring-zone candidates</span><span>✓ Proposed sensor network</span></div>
+      <a href="/historical" class="open-app">เปิด Historical Baseline Explorer</a>
     </section>
   </main>
-  <div class="demo-warning">DEMO-PLOT-001 is a synthetic demonstration boundary. It is not a cadastral, surveyed, legal, ownership, or officially verified plot boundary.</div>
-  <nav class="controls"><button id="prev" aria-label="ก่อนหน้า">←</button><span id="counter">1 / 6</span><button id="next" aria-label="ถัดไป">→</button><button id="fullscreen">⛶</button></nav>
+  <div class="demo-warning">DEMO-PLOT-001 is a synthetic demonstration boundary. Historical imagery does not independently verify AWD compliance.</div>
+  <nav class="controls"><button id="prev" aria-label="ก่อนหน้า">←</button><span id="counter">1 / 13</span><button id="next" aria-label="ถัดไป">→</button><button id="fullscreen" aria-label="เต็มจอ">⛶</button></nav>
   <script src="/static/presentation.js"></script>
 </body>
 </html>
