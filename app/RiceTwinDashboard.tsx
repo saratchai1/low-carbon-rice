@@ -459,6 +459,249 @@ function StateRow({ label, value, source }: { label: string; value: string; sour
   );
 }
 
+function HistoricalCompare({ timeline }: { timeline: HistoricalScene[] }) {
+  const latestYear = timeline.at(-1)?.date.slice(0, 4) ?? "all";
+  const [sensor, setSensor] = useState<SentinelSensor>("Sentinel-2");
+  const [year, setYear] = useState(latestYear);
+  const [mode, setMode] = useState("ndvi");
+  const [beforeId, setBeforeId] = useState("");
+  const [afterId, setAfterId] = useState("");
+  const [swipe, setSwipe] = useState(50);
+  const [threshold, setThreshold] = useState(22);
+  const [heatmapSummary, setHeatmapSummary] = useState({ changed: 0, mean: 0, status: "กำลังสร้าง heatmap…" });
+  const heatmapRef = useRef<HTMLCanvasElement>(null);
+  const years = useMemo(
+    () => [...new Set(timeline.map((scene) => scene.date.slice(0, 4)))],
+    [timeline],
+  );
+  const scenes = useMemo(
+    () => timeline.filter((scene) => scene.sensor === sensor && (year === "all" || scene.date.startsWith(year))),
+    [timeline, sensor, year],
+  );
+
+  useEffect(() => {
+    if (!scenes.length) {
+      setBeforeId("");
+      setAfterId("");
+      return;
+    }
+    const sceneIds = new Set(scenes.map((scene) => scene.image_id));
+    if (!sceneIds.has(beforeId)) setBeforeId(scenes[Math.max(0, scenes.length - 8)].image_id);
+    if (!sceneIds.has(afterId)) setAfterId(scenes[scenes.length - 1].image_id);
+  }, [scenes, beforeId, afterId]);
+
+  const beforeScene = scenes.find((scene) => scene.image_id === beforeId);
+  const afterScene = scenes.find((scene) => scene.image_id === afterId);
+  const beforeUrl = beforeScene ? imageryAssetUrl("historical-scenes", beforeScene.image_id, mode) : "";
+  const afterUrl = afterScene ? imageryAssetUrl("historical-scenes", afterScene.image_id, mode) : "";
+  const daysApart = beforeScene && afterScene
+    ? Math.abs(Math.round((Date.parse(afterScene.date) - Date.parse(beforeScene.date)) / DAY_MS))
+    : 0;
+  const vegetationDelta = beforeScene?.vegetation_score != null && afterScene?.vegetation_score != null
+    ? afterScene.vegetation_score - beforeScene.vegetation_score
+    : null;
+  const wetnessDelta = beforeScene?.water_candidate_fraction != null && afterScene?.water_candidate_fraction != null
+    ? afterScene.water_candidate_fraction - beforeScene.water_candidate_fraction
+    : null;
+
+  useEffect(() => {
+    const canvas = heatmapRef.current;
+    if (!canvas || !beforeUrl || !afterUrl) return;
+    let cancelled = false;
+    setHeatmapSummary((value) => ({ ...value, status: "กำลังสร้าง heatmap…" }));
+    const load = (url: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = url;
+    });
+    Promise.all([load(beforeUrl), load(afterUrl)]).then(([beforeImage, afterImage]) => {
+      if (cancelled || !heatmapRef.current) return;
+      const width = 720;
+      const height = Math.max(420, Math.round(width * beforeImage.naturalHeight / beforeImage.naturalWidth));
+      const scratch = document.createElement("canvas");
+      scratch.width = width;
+      scratch.height = height;
+      const context = scratch.getContext("2d", { willReadFrequently: true });
+      const output = heatmapRef.current.getContext("2d");
+      if (!context || !output) return;
+      context.drawImage(beforeImage, 0, 0, width, height);
+      const before = context.getImageData(0, 0, width, height);
+      context.clearRect(0, 0, width, height);
+      context.drawImage(afterImage, 0, 0, width, height);
+      const after = context.getImageData(0, 0, width, height);
+      const result = output.createImageData(width, height);
+      let changed = 0;
+      let valid = 0;
+      let total = 0;
+      const cutoff = threshold * 2.55;
+      for (let index = 0; index < result.data.length; index += 4) {
+        if (before.data[index + 3] < 10 || after.data[index + 3] < 10) continue;
+        const score = (
+          Math.abs(before.data[index] - after.data[index])
+          + Math.abs(before.data[index + 1] - after.data[index + 1])
+          + Math.abs(before.data[index + 2] - after.data[index + 2])
+        ) / 3;
+        valid += 1;
+        total += score;
+        if (score < cutoff) continue;
+        changed += 1;
+        const intensity = Math.min(1, (score - cutoff) / Math.max(1, 255 - cutoff));
+        result.data[index] = 255;
+        result.data[index + 1] = Math.round(196 - intensity * 145);
+        result.data[index + 2] = Math.round(42 - intensity * 25);
+        result.data[index + 3] = Math.round(105 + intensity * 145);
+      }
+      heatmapRef.current.width = width;
+      heatmapRef.current.height = height;
+      output.putImageData(result, 0, 0);
+      setHeatmapSummary({
+        changed: valid ? changed / valid : 0,
+        mean: valid ? total / valid / 255 : 0,
+        status: "พร้อมใช้งาน",
+      });
+    }).catch(() => {
+      if (!cancelled) setHeatmapSummary({ changed: 0, mean: 0, status: "สร้าง heatmap ไม่สำเร็จ" });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [beforeUrl, afterUrl, threshold]);
+
+  const changeText = vegetationDelta == null
+    ? "ไม่มีค่าพืชพรรณสำหรับคู่นี้"
+    : vegetationDelta >= 0.12
+      ? "สัญญาณพืชพรรณเพิ่มขึ้นชัดเจน"
+      : vegetationDelta <= -0.12
+        ? "สัญญาณพืชพรรณลดลงชัดเจน"
+        : "สัญญาณพืชพรรณเปลี่ยนไม่มาก";
+
+  return (
+    <section className="panel history-compare">
+      <div className="panel-head">
+        <div>
+          <p className="kicker">BEFORE / AFTER + CHANGE CANDIDATE · เปรียบเทียบภาพสองช่วงเวลา</p>
+          <h3>ลากดูความเปลี่ยนแปลง แล้วเปิด heatmap เพื่อหาพื้นที่ที่ควรตรวจ</h3>
+        </div>
+        <Source>DERIVED</Source>
+      </div>
+      <div className="compare-toolbar">
+        <label>ดาวเทียม<select aria-label="ดาวเทียมสำหรับเปรียบเทียบ" value={sensor} onChange={(event) => {
+          const value = event.target.value as SentinelSensor;
+          setSensor(value);
+          setMode(value === "Sentinel-2" ? "ndvi" : "vv");
+        }}><option>Sentinel-2</option><option>Sentinel-1</option></select></label>
+        <label>ปี<select aria-label="ปีสำหรับเปรียบเทียบ" value={year} onChange={(event) => setYear(event.target.value)}><option value="all">ทุกปี</option>{years.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label>ภาพก่อน<select aria-label="วันที่ภาพก่อน" value={beforeId} onChange={(event) => setBeforeId(event.target.value)}>{scenes.map((scene) => <option key={scene.image_id} value={scene.image_id}>{scene.date}</option>)}</select></label>
+        <button type="button" className="compare-swap" onClick={() => { setBeforeId(afterId); setAfterId(beforeId); }} aria-label="สลับภาพก่อนและหลัง">⇄ สลับ</button>
+        <label>ภาพหลัง<select aria-label="วันที่ภาพหลัง" value={afterId} onChange={(event) => setAfterId(event.target.value)}>{scenes.map((scene) => <option key={scene.image_id} value={scene.image_id}>{scene.date}</option>)}</select></label>
+        <label>สี / ดัชนี<select aria-label="โหมดภาพเปรียบเทียบ" value={mode} onChange={(event) => setMode(event.target.value)}>{historicalModes[sensor].map((item) => <option key={item[0]} value={item[0]}>{item[1]}</option>)}</select></label>
+      </div>
+      {beforeScene && afterScene && (
+        <>
+          <div className="compare-grid">
+            <div>
+              <div className="compare-viewport" data-testid="historical-swipe">
+                <img src={beforeUrl} alt={`ภาพก่อน ${beforeScene.date}`} />
+                <div className="compare-after" style={{ clipPath: `inset(0 0 0 ${swipe}%)` }}>
+                  <img src={afterUrl} alt={`ภาพหลัง ${afterScene.date}`} />
+                </div>
+                <span className="compare-label before">ก่อน · {beforeScene.date}</span>
+                <span className="compare-label after">หลัง · {afterScene.date}</span>
+                <i className="compare-divider" style={{ left: `${swipe}%` }}><b>↔</b></i>
+                <input aria-label="ลากเปรียบเทียบภาพก่อนและหลัง" type="range" min="0" max="100" value={swipe} onInput={(event) => setSwipe(Number(event.currentTarget.value))} onChange={(event) => setSwipe(Number(event.target.value))} />
+              </div>
+              <div className="compare-swipe-help">ลากแถบเพื่อเปิดภาพหลังจากขวาไปซ้าย · ใช้ภาพจากดาวเทียมและโหมดเดียวกัน</div>
+            </div>
+            <aside className="compare-insights">
+              <div><span>ช่วงห่าง</span><strong>{daysApart} วัน</strong></div>
+              <div><span>{sensor === "Sentinel-2" ? "Δ Vegetation" : "Δ Radar structure"}</span><strong className={(vegetationDelta ?? 0) >= 0 ? "positive" : "negative"}>{vegetationDelta == null ? "—" : `${vegetationDelta >= 0 ? "+" : ""}${vegetationDelta.toFixed(3)}`}</strong></div>
+              <div><span>Δ Candidate ความเปียก</span><strong>{wetnessDelta == null ? "—" : `${wetnessDelta >= 0 ? "+" : ""}${(wetnessDelta * 100).toFixed(1)}%`}</strong></div>
+              <p><b>{changeText}</b> ค่านี้สรุปจาก metric ของทั้งแปลง ส่วนตำแหน่งย่อยให้ใช้ heatmap เป็นจุดเริ่มลงตรวจภาคสนาม</p>
+            </aside>
+          </div>
+          <div className="change-heatmap">
+            <div className="heatmap-canvas-wrap">
+              <img src={beforeUrl} alt="" aria-hidden="true" />
+              <canvas ref={heatmapRef} aria-label="Heatmap candidate ความเปลี่ยนแปลงระหว่างสองภาพ" />
+              <div className="heatmap-scale"><span>เปลี่ยนน้อย</span><i /><span>เปลี่ยนมาก</span></div>
+            </div>
+            <aside>
+              <p className="kicker">CHANGE HEATMAP · แผนที่ candidate ความเปลี่ยนแปลง</p>
+              <h4>{heatmapSummary.status}</h4>
+              <label>ความไวของการตรวจ<input aria-label="เกณฑ์ความไว heatmap" type="range" min="8" max="55" value={threshold} onInput={(event) => setThreshold(Number(event.currentTarget.value))} onChange={(event) => setThreshold(Number(event.target.value))} /><b>{threshold}%</b></label>
+              <div className="heatmap-stats"><span><b>{(heatmapSummary.changed * 100).toFixed(1)}%</b>พิกเซลเกินเกณฑ์</span><span><b>{(heatmapSummary.mean * 100).toFixed(1)}%</b>ความต่างเฉลี่ย</span></div>
+              <p className="heatmap-warning">Heatmap นี้คำนวณจากความต่างของพิกเซลในภาพแสดงผลที่เลือก จึงเป็น candidate สำหรับชี้จุดตรวจ ไม่ใช่ผลต่างดัชนีดิบ การจำแนกความเสียหาย หรือหลักฐานยืนยัน AWD</p>
+            </aside>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function CropCalendar({ cycles }: { cycles: any[] }) {
+  const [selectedIndex, setSelectedIndex] = useState(Math.max(0, cycles.length - 1));
+  useEffect(() => {
+    setSelectedIndex((value) => Math.min(value, Math.max(0, cycles.length - 1)));
+  }, [cycles.length]);
+  const cycle = cycles[selectedIndex];
+  if (!cycle) return null;
+  const start = Date.parse(cycle.probable_start_date);
+  const end = Date.parse(cycle.probable_harvest_window[1]);
+  const duration = Math.max(DAY_MS, end - start);
+  const position = (date: string) => Math.max(0, Math.min(100, ((Date.parse(date) - start) / duration) * 100));
+  const plantingStart = position(cycle.probable_planting_window[0]);
+  const plantingEnd = position(cycle.probable_planting_window[1]);
+  const peak = position(cycle.probable_peak_date);
+  const harvestStart = position(cycle.probable_harvest_window[0]);
+  const harvestEnd = position(cycle.probable_harvest_window[1]);
+  const evidence = [...new Set([0, Math.floor(cycle.evidence_image_ids.length / 4), Math.floor(cycle.evidence_image_ids.length / 2), Math.floor(cycle.evidence_image_ids.length * 3 / 4), cycle.evidence_image_ids.length - 1])]
+    .map((index) => cycle.evidence_image_ids[index])
+    .filter(Boolean);
+  const overlaps = Date.parse(cycle.probable_harvest_window[0]) < Date.parse(cycle.probable_planting_window[1]);
+
+  return (
+    <section className="panel crop-calendar">
+      <div className="panel-head">
+        <div><p className="kicker">PROBABLE CROP CALENDAR · ปฏิทินฤดูปลูกจากภาพย้อนหลัง</p><h3>ช่วงเตรียมแปลง–ปลูก–พืชสูงสุด–เก็บเกี่ยว พร้อมภาพสนับสนุน</h3></div>
+        <Source>ESTIMATED</Source>
+      </div>
+      <div className="cycle-tabs" role="tablist" aria-label="เลือกรอบปลูกที่เป็นไปได้">
+        {cycles.map((item, index) => <button type="button" role="tab" aria-selected={selectedIndex === index} className={selectedIndex === index ? "active" : ""} key={item.season_id} onClick={() => setSelectedIndex(index)}><b>รอบ {index + 1}</b><span>{item.probable_peak_date.slice(0, 4)}</span></button>)}
+      </div>
+      <div className="calendar-summary">
+        <div><span>เริ่มรอบโดยประมาณ</span><b>{cycle.probable_start_date}</b></div>
+        <div><span>ระยะเวลาประมาณ</span><b>{cycle.estimated_crop_duration_days} วัน</b></div>
+        <div><span>ภาพสนับสนุน</span><b>{cycle.number_of_supporting_images} ภาพ</b></div>
+        <div><span>ความมั่นใจ</span><b>{sourceThai[cycle.confidence] ?? cycle.confidence}</b></div>
+      </div>
+      <div className="calendar-track" aria-label="เส้นเวลารอบปลูกที่เป็นไปได้">
+        <div className="calendar-axis"><span>{cycle.probable_start_date}</span><span>{cycle.probable_harvest_window[1]}</span></div>
+        <i className="calendar-prep" style={{ left: "0%", width: `${plantingStart}%` }} />
+        <i className="calendar-plant" style={{ left: `${plantingStart}%`, width: `${Math.max(2, plantingEnd - plantingStart)}%` }} />
+        <i className="calendar-grow" style={{ left: `${plantingEnd}%`, width: `${Math.max(2, peak - plantingEnd)}%` }} />
+        <i className="calendar-mature" style={{ left: `${peak}%`, width: `${Math.max(2, harvestStart - peak)}%` }} />
+        <i className="calendar-harvest" style={{ left: `${harvestStart}%`, width: `${Math.max(2, harvestEnd - harvestStart)}%` }} />
+        <b className="calendar-peak" style={{ left: `${peak}%` }}><span>จุดสูงสุด</span></b>
+      </div>
+      <div className="calendar-stages">
+        <article><i className="prep" /><span>เตรียมแปลง</span><b>{cycle.probable_start_date}</b></article>
+        <article><i className="plant" /><span>ช่วงปลูก</span><b>{cycle.probable_planting_window.join(" – ")}</b></article>
+        <article><i className="grow" /><span>พืชพรรณเพิ่มขึ้น</span><b>ถึง {cycle.probable_peak_date}</b></article>
+        <article><i className="peak" /><span>พืชพรรณสูงสุด</span><b>{cycle.probable_peak_date}</b></article>
+        <article><i className="harvest" /><span>ช่วงเก็บเกี่ยว</span><b>{cycle.probable_harvest_window.join(" – ")}</b></article>
+      </div>
+      {overlaps && <div className="calendar-overlap">รอบล่าสุดยังมีข้อมูลไม่ครบปลายฤดู ทำให้ช่วงปลูกและเก็บเกี่ยว candidate ทับซ้อนกัน ต้องรอภาพเพิ่มหรือยืนยันด้วยบันทึกภาคสนาม</div>}
+      <div className="calendar-evidence">
+        <div><b>ภาพหลักฐานตามลำดับเวลา</b><span>ตัวอย่างจาก {cycle.number_of_supporting_images} ภาพที่รองรับรอบนี้</span></div>
+        <div>{evidence.map((imageId: string) => <figure key={imageId}><img src={imageryAssetUrl("historical-scenes", imageId, "ndvi")} alt={`ภาพ NDVI สนับสนุน ${imageId.slice(-10)}`} /><figcaption>{imageId.slice(-10)}</figcaption></figure>)}</div>
+      </div>
+      <p className="calendar-note">ปฏิทินนี้อนุมานจากช่วงวันที่ระหว่างภาพและแนวโน้มพืชพรรณ ไม่ใช่บันทึกวันปลูกหรือวันเก็บเกี่ยวจริง ต้องยืนยันด้วยข้อมูลภาคสนามก่อนนำไปอ้างอิงด้าน MRV</p>
+    </section>
+  );
+}
+
 export default function RiceTwinDashboard() {
   const [view, setView] = useState<View>("overview");
   const [menu, setMenu] = useState(false);
@@ -895,6 +1138,10 @@ export default function RiceTwinDashboard() {
                   </div>
                 </section>
 
+                <HistoricalCompare timeline={historical.timeline} />
+
+                <CropCalendar cycles={historical.cycles} />
+
                 <section className="panel">
                   <div className="panel-head"><div><p className="kicker">ข้อมูลดิบ + ค่ากลางเคลื่อนที่ · ไม่เติมข้อมูลระหว่างช่องว่าง</p><h3>Vegetation & wetness timeline · แนวโน้มพืชพรรณและความเปียก</h3></div><Source>DERIVED</Source></div>
                   {historyReading && (
@@ -940,10 +1187,7 @@ export default function RiceTwinDashboard() {
                   </div>
                 </section>
 
-                <section className="two-col">
-                  <article className="panel"><div className="panel-head"><div><p className="kicker">ช่วงวันที่โดยประมาณ · DATE WINDOWS</p><h3>รอบปลูกที่เป็นไปได้ · Probable crop cycles</h3></div><span className="count">{historical.cycles.length}</span></div><div className="history-cycles">{historical.cycles.map((cycle, index) => <div key={cycle.season_id}><b>รอบ {index + 1} · จุดสูงสุดโดยประมาณ {cycle.probable_peak_date}</b><span>ปลูก {cycle.probable_planting_window.join(" – ")}</span><span>เก็บเกี่ยว {cycle.probable_harvest_window.join(" – ")}</span><small>{sourceThai[cycle.confidence] ?? cycle.confidence} · ภาพสนับสนุน {cycle.number_of_supporting_images} ภาพ · ค่าประมาณ</small></div>)}</div></article>
-                  <article className="panel table-panel"><div className="panel-head"><div><p className="kicker">เปรียบเทียบรายปี · YEAR COMPARISON</p><h3>ฐานข้อมูลย้อนหลังสามปี · Three-year baseline</h3></div></div><table><thead><tr><th>ปี</th><th>รอบ</th><th>พื้นที่ปลูก (ไร่)</th><th>ภาพ</th><th>ความมั่นใจ</th></tr></thead><tbody>{historical.baseline.years.map((year: any) => <tr key={year.year}><td>{year.year}</td><td>{year.probable_crop_cycles}</td><td>{year.cultivated_area_range_rai.join("–")}</td><td>{year.image_count}</td><td><Source>{year.confidence}</Source></td></tr>)}</tbody></table></article>
-                </section>
+                <section className="panel table-panel"><div className="panel-head"><div><p className="kicker">เปรียบเทียบรายปี · YEAR COMPARISON</p><h3>ฐานข้อมูลย้อนหลังสามปี · Three-year baseline</h3></div></div><table><thead><tr><th>ปี</th><th>รอบ</th><th>พื้นที่ปลูก (ไร่)</th><th>ภาพ</th><th>ความมั่นใจ</th></tr></thead><tbody>{historical.baseline.years.map((year: any) => <tr key={year.year}><td>{year.year}</td><td>{year.probable_crop_cycles}</td><td>{year.cultivated_area_range_rai.join("–")}</td><td>{year.image_count}</td><td><Source>{year.confidence}</Source></td></tr>)}</tbody></table></section>
 
                 <section className="panel"><div className="panel-head"><div><p className="kicker">กริดจริง 10 เมตร · ไม่เพิ่มความละเอียดเทียม</p><h3>พื้นที่ที่พบรูปแบบซ้ำ · Recurring zones</h3></div><Source>DERIVED</Source></div><div className="history-zone-grid">{historical.zones.map((zone) => <article key={zone.zone_id}><Source>{zone.provenance}</Source><h3>{zoneThai[zone.zone_type] ?? zone.zone_type}</h3><small>{zone.zone_type}</small><strong>{zone.number_of_occurrences} / {zone.number_of_usable_images}</strong><p>พบในปี {zone.years_detected.join(", ")} · แนะนำให้ลงตรวจภาคสนามในพื้นที่นี้</p></article>)}</div></section>
 

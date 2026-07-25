@@ -75,6 +75,12 @@ test("ships the historical baseline bundle and both sensor archives", async () =
   assert.match(dashboardSource, /source\.updateImage/);
   assert.match(dashboardSource, /HISTORY_PREFETCH_FRAMES = 8/);
   assert.match(dashboardSource, /historyScene\.coordinates \?\?/);
+  assert.match(dashboardSource, /BEFORE \/ AFTER \+ CHANGE CANDIDATE/);
+  assert.match(dashboardSource, /data-testid="historical-swipe"/);
+  assert.match(dashboardSource, /CHANGE HEATMAP · แผนที่ candidate ความเปลี่ยนแปลง/);
+  assert.match(dashboardSource, /PROBABLE CROP CALENDAR · ปฏิทินฤดูปลูกจากภาพย้อนหลัง/);
+  assert.match(dashboardSource, /Heatmap นี้คำนวณจากความต่างของพิกเซลในภาพแสดงผล/);
+  assert.match(dashboardSource, /ไม่ใช่บันทึกวันปลูกหรือวันเก็บเกี่ยวจริง/);
   assert.doesNotMatch(dashboardSource, /key=\{`history-\$\{historyScene\.image_id\}/);
   assert.equal(historical.public_static_snapshot, true);
   assert.ok(historical.timeline.length >= 265);
