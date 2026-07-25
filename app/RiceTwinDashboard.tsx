@@ -73,6 +73,7 @@ type HistoricalScene = {
   confidence: string;
   provenance: string;
   limitations: string[];
+  cloud_cover_percent?: number | null;
   derived_field_state?: { state: string; confidence: string; explanation: string };
 };
 type HistoricalBundle = {
@@ -84,6 +85,7 @@ type HistoricalBundle = {
   zones: any[];
   evidence: any[];
   sensors: any[];
+  cloud_threshold_percent?: number;
 };
 
 const sentinel2Modes = [
@@ -459,7 +461,7 @@ function StateRow({ label, value, source }: { label: string; value: string; sour
   );
 }
 
-function HistoricalCompare({ timeline }: { timeline: HistoricalScene[] }) {
+function HistoricalCompare({ timeline, cloudThreshold = 20 }: { timeline: HistoricalScene[]; cloudThreshold?: number }) {
   const latestYear = timeline.at(-1)?.date.slice(0, 4) ?? "all";
   const [sensor, setSensor] = useState<SentinelSensor>("Sentinel-2");
   const [year, setYear] = useState(latestYear);
@@ -478,6 +480,11 @@ function HistoricalCompare({ timeline }: { timeline: HistoricalScene[] }) {
     () => timeline.filter((scene) => scene.sensor === sensor && (year === "all" || scene.date.startsWith(year))),
     [timeline, sensor, year],
   );
+  const cloudEligibleScenes = useMemo(
+    () => scenes.filter((scene) => sensor === "Sentinel-1"
+      || (scene.cloud_cover_percent != null && scene.cloud_cover_percent <= cloudThreshold)),
+    [scenes, sensor, cloudThreshold],
+  );
 
   useEffect(() => {
     if (!scenes.length) {
@@ -486,12 +493,32 @@ function HistoricalCompare({ timeline }: { timeline: HistoricalScene[] }) {
       return;
     }
     const sceneIds = new Set(scenes.map((scene) => scene.image_id));
-    if (!sceneIds.has(beforeId)) setBeforeId(scenes[Math.max(0, scenes.length - 8)].image_id);
-    if (!sceneIds.has(afterId)) setAfterId(scenes[scenes.length - 1].image_id);
-  }, [scenes, beforeId, afterId]);
+    const preferred = cloudEligibleScenes.length >= 2 ? cloudEligibleScenes : scenes;
+    if (!sceneIds.has(beforeId)) setBeforeId(preferred[Math.max(0, preferred.length - 2)].image_id);
+    if (!sceneIds.has(afterId)) setAfterId(preferred[preferred.length - 1].image_id);
+  }, [scenes, cloudEligibleScenes, beforeId, afterId]);
 
   const beforeScene = scenes.find((scene) => scene.image_id === beforeId);
   const afterScene = scenes.find((scene) => scene.image_id === afterId);
+  const cloudBlocked = sensor === "Sentinel-2" && Boolean(
+    beforeScene && afterScene && (
+      beforeScene.cloud_cover_percent == null
+      || afterScene.cloud_cover_percent == null
+      || beforeScene.cloud_cover_percent > cloudThreshold
+      || afterScene.cloud_cover_percent > cloudThreshold
+    )
+  );
+  const cloudLabel = (scene: HistoricalScene) => {
+    if (scene.sensor === "Sentinel-1") return `${scene.date} · Radar`;
+    if (scene.cloud_cover_percent == null) return `${scene.date} · ไม่มีข้อมูลเมฆ · งด Heatmap`;
+    const status = scene.cloud_cover_percent <= cloudThreshold ? "ผ่าน" : "งด Heatmap";
+    return `${scene.date} · เมฆ ${scene.cloud_cover_percent.toFixed(1)}% · ${status}`;
+  };
+  const selectClearPair = () => {
+    if (cloudEligibleScenes.length < 2) return;
+    setBeforeId(cloudEligibleScenes[cloudEligibleScenes.length - 2].image_id);
+    setAfterId(cloudEligibleScenes[cloudEligibleScenes.length - 1].image_id);
+  };
   const beforeUrl = beforeScene ? imageryAssetUrl("historical-scenes", beforeScene.image_id, mode) : "";
   const afterUrl = afterScene ? imageryAssetUrl("historical-scenes", afterScene.image_id, mode) : "";
   const daysApart = beforeScene && afterScene
@@ -506,7 +533,13 @@ function HistoricalCompare({ timeline }: { timeline: HistoricalScene[] }) {
 
   useEffect(() => {
     const canvas = heatmapRef.current;
-    if (!canvas || !beforeUrl || !afterUrl) return;
+    if (!canvas) return;
+    if (!beforeUrl || !afterUrl || cloudBlocked) {
+      canvas.width = 1;
+      canvas.height = 1;
+      if (cloudBlocked) setHeatmapSummary({ changed: 0, mean: 0, status: "ปิดใช้งาน—ภาพเมฆมาก" });
+      return;
+    }
     let cancelled = false;
     setHeatmapSummary((value) => ({ ...value, status: "กำลังสร้าง heatmap…" }));
     const load = (url: string) => new Promise<HTMLImageElement>((resolve, reject) => {
@@ -566,9 +599,11 @@ function HistoricalCompare({ timeline }: { timeline: HistoricalScene[] }) {
     return () => {
       cancelled = true;
     };
-  }, [beforeUrl, afterUrl, threshold]);
+  }, [beforeUrl, afterUrl, threshold, cloudBlocked]);
 
-  const changeText = vegetationDelta == null
+  const changeText = cloudBlocked
+    ? "งดตีความค่าความเปลี่ยนแปลง เพราะมีภาพเมฆเกินเกณฑ์"
+    : vegetationDelta == null
     ? "ไม่มีค่าพืชพรรณสำหรับคู่นี้"
     : vegetationDelta >= 0.12
       ? "สัญญาณพืชพรรณเพิ่มขึ้นชัดเจน"
@@ -592,11 +627,22 @@ function HistoricalCompare({ timeline }: { timeline: HistoricalScene[] }) {
           setMode(value === "Sentinel-2" ? "ndvi" : "vv");
         }}><option>Sentinel-2</option><option>Sentinel-1</option></select></label>
         <label>ปี<select aria-label="ปีสำหรับเปรียบเทียบ" value={year} onChange={(event) => setYear(event.target.value)}><option value="all">ทุกปี</option>{years.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label>ภาพก่อน<select aria-label="วันที่ภาพก่อน" value={beforeId} onChange={(event) => setBeforeId(event.target.value)}>{scenes.map((scene) => <option key={scene.image_id} value={scene.image_id}>{scene.date}</option>)}</select></label>
+        <label>ภาพก่อน<select aria-label="วันที่ภาพก่อน" value={beforeId} onChange={(event) => setBeforeId(event.target.value)}>{scenes.map((scene) => <option key={scene.image_id} value={scene.image_id}>{cloudLabel(scene)}</option>)}</select></label>
         <button type="button" className="compare-swap" onClick={() => { setBeforeId(afterId); setAfterId(beforeId); }} aria-label="สลับภาพก่อนและหลัง">⇄ สลับ</button>
-        <label>ภาพหลัง<select aria-label="วันที่ภาพหลัง" value={afterId} onChange={(event) => setAfterId(event.target.value)}>{scenes.map((scene) => <option key={scene.image_id} value={scene.image_id}>{scene.date}</option>)}</select></label>
+        <label>ภาพหลัง<select aria-label="วันที่ภาพหลัง" value={afterId} onChange={(event) => setAfterId(event.target.value)}>{scenes.map((scene) => <option key={scene.image_id} value={scene.image_id}>{cloudLabel(scene)}</option>)}</select></label>
         <label>สี / ดัชนี<select aria-label="โหมดภาพเปรียบเทียบ" value={mode} onChange={(event) => setMode(event.target.value)}>{historicalModes[sensor].map((item) => <option key={item[0]} value={item[0]}>{item[1]}</option>)}</select></label>
       </div>
+      {beforeScene && afterScene && (
+        <div className={`compare-cloud-gate ${cloudBlocked ? "blocked" : "passed"}`} role="status">
+          <div>
+            <b>{sensor === "Sentinel-1" ? "ผ่าน · Radar มองทะลุเมฆ" : cloudBlocked ? "งด Heatmap · ภาพเมฆเกินเกณฑ์" : "ผ่านการคัดเมฆ"}</b>
+            <span>{sensor === "Sentinel-1"
+              ? "Sentinel‑1 ใช้สัญญาณเรดาร์ จึงเปรียบเทียบได้ในช่วงที่ท้องฟ้ามีเมฆ"
+              : `ก่อน ${beforeScene.cloud_cover_percent?.toFixed(1) ?? "—"}% · หลัง ${afterScene.cloud_cover_percent?.toFixed(1) ?? "—"}% · เกณฑ์ไม่เกิน ${cloudThreshold}%`}</span>
+          </div>
+          {cloudBlocked && cloudEligibleScenes.length >= 2 && <button type="button" onClick={selectClearPair}>เลือกคู่ฟ้าเปิดล่าสุด</button>}
+        </div>
+      )}
       {beforeScene && afterScene && (
         <>
           <div className="compare-grid">
@@ -615,8 +661,8 @@ function HistoricalCompare({ timeline }: { timeline: HistoricalScene[] }) {
             </div>
             <aside className="compare-insights">
               <div><span>ช่วงห่าง</span><strong>{daysApart} วัน</strong></div>
-              <div><span>{sensor === "Sentinel-2" ? "Δ Vegetation" : "Δ Radar structure"}</span><strong className={(vegetationDelta ?? 0) >= 0 ? "positive" : "negative"}>{vegetationDelta == null ? "—" : `${vegetationDelta >= 0 ? "+" : ""}${vegetationDelta.toFixed(3)}`}</strong></div>
-              <div><span>Δ Candidate ความเปียก</span><strong>{wetnessDelta == null ? "—" : `${wetnessDelta >= 0 ? "+" : ""}${(wetnessDelta * 100).toFixed(1)}%`}</strong></div>
+              <div><span>{sensor === "Sentinel-2" ? "Δ Vegetation" : "Δ Radar structure"}</span><strong className={(vegetationDelta ?? 0) >= 0 ? "positive" : "negative"}>{cloudBlocked || vegetationDelta == null ? "—" : `${vegetationDelta >= 0 ? "+" : ""}${vegetationDelta.toFixed(3)}`}</strong></div>
+              <div><span>Δ Candidate ความเปียก</span><strong>{cloudBlocked || wetnessDelta == null ? "—" : `${wetnessDelta >= 0 ? "+" : ""}${(wetnessDelta * 100).toFixed(1)}%`}</strong></div>
               <p><b>{changeText}</b> ค่านี้สรุปจาก metric ของทั้งแปลง ส่วนตำแหน่งย่อยให้ใช้ heatmap เป็นจุดเริ่มลงตรวจภาคสนาม</p>
             </aside>
           </div>
@@ -624,14 +670,15 @@ function HistoricalCompare({ timeline }: { timeline: HistoricalScene[] }) {
             <div className="heatmap-canvas-wrap">
               <img src={beforeUrl} alt="" aria-hidden="true" />
               <canvas ref={heatmapRef} aria-label="Heatmap candidate ความเปลี่ยนแปลงระหว่างสองภาพ" />
+              {cloudBlocked && <div className="heatmap-blocked"><b>ไม่แสดง Heatmap</b><span>เมฆหรือเงาเมฆอาจถูกอ่านผิดเป็นความเปลี่ยนแปลงของแปลง</span></div>}
               <div className="heatmap-scale"><span>เปลี่ยนน้อย</span><i /><span>เปลี่ยนมาก</span></div>
             </div>
             <aside>
               <p className="kicker">CHANGE HEATMAP · แผนที่ candidate ความเปลี่ยนแปลง</p>
               <h4>{heatmapSummary.status}</h4>
-              <label>ความไวของการตรวจ<input aria-label="เกณฑ์ความไว heatmap" type="range" min="8" max="55" value={threshold} onInput={(event) => setThreshold(Number(event.currentTarget.value))} onChange={(event) => setThreshold(Number(event.target.value))} /><b>{threshold}%</b></label>
-              <div className="heatmap-stats"><span><b>{(heatmapSummary.changed * 100).toFixed(1)}%</b>พิกเซลเกินเกณฑ์</span><span><b>{(heatmapSummary.mean * 100).toFixed(1)}%</b>ความต่างเฉลี่ย</span></div>
-              <p className="heatmap-warning">Heatmap นี้คำนวณจากความต่างของพิกเซลในภาพแสดงผลที่เลือก จึงเป็น candidate สำหรับชี้จุดตรวจ ไม่ใช่ผลต่างดัชนีดิบ การจำแนกความเสียหาย หรือหลักฐานยืนยัน AWD</p>
+              <label>ความไวของการตรวจ<input aria-label="เกณฑ์ความไว heatmap" type="range" min="8" max="55" value={threshold} disabled={cloudBlocked} onInput={(event) => setThreshold(Number(event.currentTarget.value))} onChange={(event) => setThreshold(Number(event.target.value))} /><b>{threshold}%</b></label>
+              <div className="heatmap-stats"><span><b>{cloudBlocked ? "—" : `${(heatmapSummary.changed * 100).toFixed(1)}%`}</b>พิกเซลเกินเกณฑ์</span><span><b>{cloudBlocked ? "—" : `${(heatmapSummary.mean * 100).toFixed(1)}%`}</b>ความต่างเฉลี่ย</span></div>
+              <p className="heatmap-warning">Heatmap ทำงานเฉพาะคู่ภาพ Sentinel‑2 ที่มี cloud cover ไม่เกินเกณฑ์ หรือภาพ Sentinel‑1 Radar เท่านั้น ผลยังเป็น candidate จากพิกเซลภาพแสดงผล ไม่ใช่การจำแนกความเสียหายหรือหลักฐานยืนยัน AWD</p>
             </aside>
           </div>
         </>
@@ -839,13 +886,26 @@ export default function RiceTwinDashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(new URL("historical/data.json", window.location.href))
-      .then((response) => {
+    Promise.all([
+      fetch(new URL("historical/data.json", window.location.href)).then((response) => {
         if (!response.ok) throw new Error(`Historical bundle ${response.status}`);
-        return response.json();
-      })
-      .then((payload: HistoricalBundle) => {
-        if (!cancelled) setHistorical(payload);
+        return response.json() as Promise<HistoricalBundle>;
+      }),
+      fetch(new URL("historical/cloud-cover.json", window.location.href))
+        .then((response) => response.ok ? response.json() : { threshold_percent: 20, scenes: {} })
+        .catch(() => ({ threshold_percent: 20, scenes: {} })),
+    ])
+      .then(([payload, clouds]: [HistoricalBundle, { threshold_percent: number; scenes: Record<string, number> }]) => {
+        if (!cancelled) setHistorical({
+          ...payload,
+          cloud_threshold_percent: clouds.threshold_percent,
+          timeline: payload.timeline.map((scene) => ({
+            ...scene,
+            cloud_cover_percent: scene.sensor === "Sentinel-2"
+              ? clouds.scenes[scene.image_id] ?? null
+              : null,
+          })),
+        });
       })
       .catch((error: Error) => {
         if (!cancelled) setHistoryError(error.message);
@@ -1121,11 +1181,16 @@ export default function RiceTwinDashboard() {
                         <StateRow label="วันที่ถ่าย · Acquired" value={historyScene.date} source="OBSERVED" />
                         <StateRow label="ดาวเทียม · Sensor" value={historyScene.sensor} source="OBSERVED" />
                         <StateRow label="คุณภาพภาพ · Image quality" value={`${historyScene.quality.toFixed(1)} / 100`} source="DERIVED" />
+                        {historyScene.sensor === "Sentinel-2" && <StateRow label="เมฆ · Cloud cover" value={historyScene.cloud_cover_percent == null ? "ไม่มี metadata" : `${historyScene.cloud_cover_percent.toFixed(1)}%`} source="OBSERVED" />}
                         <StateRow label="ครอบคลุมแปลง · Plot coverage" value={`${historyScene.plot_coverage_percent.toFixed(1)}%`} source="DERIVED" />
                         <StateRow label="พืชพรรณ · Vegetation" value={historyScene.vegetation_score?.toFixed(3) ?? "—"} source="DERIVED" />
                         <StateRow label="Candidate ความเปียก · Wetness" value={historyScene.water_candidate_fraction == null ? "—" : `${(historyScene.water_candidate_fraction * 100).toFixed(1)}%`} source="DERIVED" />
                         <StateRow label="สถานะประมาณการ · Derived state" value={fieldStateThai[historyScene.derived_field_state?.state ?? ""] ?? "candidate สภาพพื้นผิว"} source="ESTIMATED" />
-                        <p>{explanationThai[historyScene.derived_field_state?.explanation ?? ""] ?? "การตีความนี้เป็น candidate จากภาพ ต้องตรวจยืนยันกับข้อมูลภาคสนาม"}</p>
+                        <p className={historyScene.sensor === "Sentinel-2" && (historyScene.cloud_cover_percent == null || historyScene.cloud_cover_percent > (historical.cloud_threshold_percent ?? 20)) ? "history-cloud-warning" : ""}>
+                          {historyScene.sensor === "Sentinel-2" && (historyScene.cloud_cover_percent == null || historyScene.cloud_cover_percent > (historical.cloud_threshold_percent ?? 20))
+                            ? "ภาพนี้ไม่ผ่านการคัดเมฆ งดใช้ค่าพืชพรรณและความเปียกเพื่อตีความการเปลี่ยนแปลง"
+                            : explanationThai[historyScene.derived_field_state?.explanation ?? ""] ?? "การตีความนี้เป็น candidate จากภาพ ต้องตรวจยืนยันกับข้อมูลภาคสนาม"}
+                        </p>
                       </aside>
                     </div>
                   )}
@@ -1138,7 +1203,7 @@ export default function RiceTwinDashboard() {
                   </div>
                 </section>
 
-                <HistoricalCompare timeline={historical.timeline} />
+                <HistoricalCompare timeline={historical.timeline} cloudThreshold={historical.cloud_threshold_percent} />
 
                 <CropCalendar cycles={historical.cycles} />
 

@@ -67,6 +67,9 @@ test("ships the historical baseline bundle and both sensor archives", async () =
   const historical = JSON.parse(
     await readFile(new URL("../public/historical/data.json", import.meta.url), "utf8"),
   );
+  const cloudCover = JSON.parse(
+    await readFile(new URL("../public/historical/cloud-cover.json", import.meta.url), "utf8"),
+  );
   assert.match(dashboardSource, /Historical Baseline Explorer/);
   assert.match(dashboardSource, /ข้อเสนอ · ยังไม่ตรวจยืนยันภาคสนาม/);
   assert.match(dashboardSource, /HISTORICAL REPLAY · เล่นภาพย้อนหลังตามเวลา/);
@@ -79,7 +82,10 @@ test("ships the historical baseline bundle and both sensor archives", async () =
   assert.match(dashboardSource, /data-testid="historical-swipe"/);
   assert.match(dashboardSource, /CHANGE HEATMAP · แผนที่ candidate ความเปลี่ยนแปลง/);
   assert.match(dashboardSource, /PROBABLE CROP CALENDAR · ปฏิทินฤดูปลูกจากภาพย้อนหลัง/);
-  assert.match(dashboardSource, /Heatmap นี้คำนวณจากความต่างของพิกเซลในภาพแสดงผล/);
+  assert.match(dashboardSource, /ปิดใช้งาน—ภาพเมฆมาก/);
+  assert.match(dashboardSource, /เลือกคู่ฟ้าเปิดล่าสุด/);
+  assert.match(dashboardSource, /cloud_cover_percent/);
+  assert.match(dashboardSource, /cloud cover ไม่เกินเกณฑ์/);
   assert.match(dashboardSource, /ไม่ใช่บันทึกวันปลูกหรือวันเก็บเกี่ยวจริง/);
   assert.doesNotMatch(dashboardSource, /key=\{`history-\$\{historyScene\.image_id\}/);
   assert.equal(historical.public_static_snapshot, true);
@@ -89,6 +95,18 @@ test("ships the historical baseline bundle and both sensor archives", async () =
   assert.ok(historical.cycles.length >= 1);
   assert.equal(historical.evidence.length, 14);
   assert.equal(historical.sensors.length, 8);
+  assert.equal(cloudCover.threshold_percent, 20);
+  assert.ok(cloudCover.scene_count >= 140);
+  assert.ok(cloudCover.scenes["hist-s2-2026-06-11"] > cloudCover.threshold_percent);
+  assert.ok(cloudCover.scenes["hist-s2-2026-07-24"] > cloudCover.threshold_percent);
+  assert.ok(cloudCover.scenes["hist-s2-2026-06-24"] <= cloudCover.threshold_percent);
+  assert.ok(cloudCover.scenes["hist-s2-2026-07-19"] <= cloudCover.threshold_percent);
+  const latestClearPair = historical.timeline
+    .filter((scene) => scene.sensor === "Sentinel-2" && scene.date.startsWith("2026"))
+    .filter((scene) => cloudCover.scenes[scene.image_id] <= cloudCover.threshold_percent)
+    .slice(-2)
+    .map((scene) => scene.date);
+  assert.deepEqual(latestClearPair, ["2026-06-24", "2026-07-19"]);
   assert.ok(historical.timeline.every((scene) =>
     Array.isArray(scene.coordinates) && scene.coordinates.length === 4
   ));
@@ -102,5 +120,6 @@ test("ships the historical baseline bundle and both sensor archives", async () =
     access(new URL("../public/historical-scenes/hist-s1-2025-01-04/vh_vv_diff.png", import.meta.url)),
     access(new URL("../public/historical/exports/recurring-zones.geojson", import.meta.url)),
     access(new URL("../public/historical/exports/executive-report.html", import.meta.url)),
+    access(new URL("../public/historical/cloud-cover.json", import.meta.url)),
   ]);
 });
