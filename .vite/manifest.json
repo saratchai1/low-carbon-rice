@@ -11,7 +11,7 @@
     "name": "rolldown-runtime"
   },
   "app/RiceTwinDashboard.tsx": {
-    "file": "assets/RiceTwinDashboard-F3SvtDMI.js",
+    "file": "assets/RiceTwinDashboard-CX9ICTfG.js",
     "name": "RiceTwinDashboard",
     "src": "app/RiceTwinDashboard.tsx",
     "isDynamicEntry": true,
@@ -31,7 +31,7 @@
     "isDynamicEntry": true
   },
   "node_modules/vinext/dist/shims/layout-segment-context.js": {
-    "file": "assets/layout-segment-context-DuyY-43o.js",
+    "file": "assets/layout-segment-context-D8F3BWCk.js",
     "name": "layout-segment-context",
     "src": "node_modules/vinext/dist/shims/layout-segment-context.js",
     "isDynamicEntry": true,
@@ -42,7 +42,7 @@
     ]
   },
   "virtual:vinext-app-browser-entry": {
-    "file": "assets/index-BIAgGtLR.js",
+    "file": "assets/index-naGVn5O5.js",
     "name": "index",
     "src": "virtual:vinext-app-browser-entry",
     "isEntry": true,
